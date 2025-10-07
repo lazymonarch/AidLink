@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "742149335007",
+    "project_id": "aidlink-dd5f6",
+    "storage_bucket": "aidlink-dd5f6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:742149335007:android:8fc1871df60c427e12066a",
+        "android_client_info": {
+          "package_name": "com.aidlink"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBakxKAclSHd_cf-8DrIQfFf8DFsJOkvtM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
