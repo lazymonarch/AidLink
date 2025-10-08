@@ -22,7 +22,7 @@ import com.aidlink.model.UserProfile
 
 class AuthRepository {
 
-    private val TAG = "AuthRepository"
+    private val tag = "AuthRepository"
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
@@ -66,14 +66,14 @@ class AuthRepository {
     }
 
     suspend fun signInWithCredential(credential: PhoneAuthCredential) = suspendCoroutine { continuation ->
-        Log.d(TAG, "Attempting to sign in with credential...")
+        Log.d(tag, "Attempting to sign in with credential...")
         auth.signInWithCredential(credential)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    Log.d(TAG, "Sign-in task was SUCCESSFUL.")
+                    Log.d(tag, "Sign-in task was SUCCESSFUL.")
                     continuation.resume(task.result?.user)
                 } else {
-                    Log.e(TAG, "Sign-in task FAILED", task.exception)
+                    Log.e(tag, "Sign-in task FAILED", task.exception)
                     continuation.resume(null)
                 }
             }
@@ -99,11 +99,38 @@ class AuthRepository {
     suspend fun saveRequest(requestData: Map<String, Any>): Boolean {
         return try {
             db.collection("requests").add(requestData).await()
-            Log.d(TAG, "Request saved successfully.")
+            Log.d(tag, "Request saved successfully.")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error saving request", e)
+            Log.e(tag, "Error saving request", e)
             false
+        }
+    }
+
+    suspend fun addResponderToRequest(requestId: String, responderId: String, responderName: String): Boolean {
+        return try {
+            db.collection("requests").document(requestId)
+                .update(
+                    mapOf(
+                        "status" to "pending",
+                        "responderId" to responderId,
+                        "responderName" to responderName
+                    )
+                ).await()
+            Log.d(tag, "Successfully added responder to request $requestId")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error adding responder to request", e)
+            false
+        }
+    }
+
+    suspend fun getUserProfileOnce(userId: String): UserProfile? {
+        return try {
+            db.collection("users").document(userId).get().await().toObject(UserProfile::class.java)
+        } catch (e: Exception) {
+            Log.e(tag, "Error getting user profile once", e)
+            null
         }
     }
 

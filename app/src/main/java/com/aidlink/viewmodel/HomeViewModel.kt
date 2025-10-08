@@ -97,6 +97,31 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    fun onRespondToRequest(requestId: String) {
+        viewModelScope.launch {
+            _requestUiState.value = RequestUiState.Loading
+            val currentUser = repository.getCurrentUser()
+            val userProfile = currentUser?.uid?.let { repository.getUserProfileOnce(it) }
+
+            if (currentUser == null || userProfile == null) {
+                _requestUiState.value = RequestUiState.Error("Could not identify user.")
+                return@launch
+            }
+
+            val success = repository.addResponderToRequest(
+                requestId = requestId,
+                responderId = currentUser.uid,
+                responderName = userProfile.name
+            )
+
+            if (success) {
+                _requestUiState.value = RequestUiState.Success
+            } else {
+                _requestUiState.value = RequestUiState.Error("Failed to send offer.")
+            }
+        }
+    }
+
     fun getRequestById(requestId: String) {
         _selectedRequest.value = _requests.value.find { it.id == requestId }
     }

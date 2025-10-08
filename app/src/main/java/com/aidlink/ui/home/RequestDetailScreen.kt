@@ -7,9 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -17,9 +15,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aidlink.model.HelpRequest
 import com.aidlink.model.RequestType
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.HomeViewModel
+import com.aidlink.viewmodel.RequestUiState
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,6 +29,13 @@ fun RequestDetailScreen(
     onBackClicked: () -> Unit
 ) {
     val request by homeViewModel.selectedRequest.collectAsState()
+    val requestUiState by homeViewModel.requestUiState.collectAsState()
+
+    DisposableEffect(Unit) {
+        onDispose {
+            homeViewModel.resetRequestState()
+        }
+    }
 
     Scaffold(
         containerColor = Color.Black,
@@ -47,19 +55,43 @@ fun RequestDetailScreen(
             )
         },
         bottomBar = {
-            Button(
-                onClick = { /* TODO: Implement "I Can Help" logic */ },
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
-                    .height(56.dp),
-                shape = RoundedCornerShape(50),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White,
-                    contentColor = Color.Black
-                )
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Text("I Can Help", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                // The bottom bar now reacts to the UI state
+                when (requestUiState) {
+                    is RequestUiState.Loading -> {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                    is RequestUiState.Success -> {
+                        Text("Offer Sent!", color = Color.Green, fontWeight = FontWeight.Bold)
+                    }
+                    is RequestUiState.Error -> {
+                        Text("Something went wrong.", color = MaterialTheme.colorScheme.error)
+                    }
+                    is RequestUiState.Idle -> {
+                        Button(
+                            onClick = {
+                                request?.id?.let {
+                                    homeViewModel.onRespondToRequest(it)
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White,
+                                contentColor = Color.Black
+                            )
+                        ) {
+                            Text("I Can Help", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
     ) { innerPadding ->
