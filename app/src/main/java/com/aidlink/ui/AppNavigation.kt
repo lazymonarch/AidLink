@@ -12,11 +12,14 @@ import com.aidlink.ui.auth.OtpVerificationScreen
 import com.aidlink.ui.auth.ProfileSetupScreen
 import com.aidlink.ui.home.HomeScreen
 import com.aidlink.viewmodel.AuthViewModel
+import com.aidlink.ui.home.PostRequestScreen
+import com.aidlink.viewmodel.HomeViewModel
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
+    val homeViewModel: HomeViewModel = viewModel()
 
     NavHost(navController = navController, startDestination = "login") {
         composable("login") {
@@ -58,7 +61,24 @@ fun AppNavigation() {
         }
 
         composable("home") {
-            HomeScreen()
+            HomeScreen(
+                // Add a callback to navigate when the FAB is clicked
+                onPostRequestClicked = {
+                    navController.navigate("post_request")
+                }
+            )
+        }
+
+        composable("post_request") {
+            PostRequestScreen(
+                homeViewModel = homeViewModel, // Pass the ViewModel
+                onClose = {
+                    navController.popBackStack() // Go back to the home screen
+                },
+                onPostRequestSuccess = {
+                    navController.popBackStack() // Go back after success
+                }
+            )
         }
     }
 }

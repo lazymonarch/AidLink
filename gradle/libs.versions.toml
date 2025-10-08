@@ -1,3 +1,5 @@
+# File: gradle/libs.versions.toml
+
 [versions]
 agp = "8.13.0"
 kotlin = "2.0.21"
@@ -9,7 +11,10 @@ lifecycleRuntimeKtx = "2.6.1"
 activityCompose = "1.8.0"
 composeBom = "2024.09.00"
 googleGmsGoogleServices = "4.4.3"
-firebaseAuth = "24.0.1"
+# --- CORRECTED ---
+# We only need one version for the Firebase Bill of Materials (BoM)
+firebaseBom = "33.1.1"
+
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -26,10 +31,16 @@ androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "u
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
-firebase-auth = { group = "com.google.firebase", name = "firebase-auth", version.ref = "firebaseAuth" }
-firebase-firestore = { module = "com.google.firebase:firebase-firestore", version = "26.0.1" }
-firebase-bom = { module = "com.google.firebase:firebase-bom", version = "34.3.0" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version = "2.7.7" }
+androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+
+# --- CORRECTED FIREBASE SECTION ---
+# 1. Define the Bill of Materials (BoM) using the version from above
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+
+# 2. Define other Firebase libs WITHOUT versions (the BoM will manage them)
+firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
 
 
 [plugins]
@@ -37,4 +48,3 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 google-gms-google-services = { id = "com.google.gms.google-services", version.ref = "googleGmsGoogleServices" }
-

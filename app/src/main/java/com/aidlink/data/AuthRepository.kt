@@ -12,6 +12,12 @@ import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import com.aidlink.model.HelpRequest
+import com.aidlink.model.RequestType
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.ktx.snapshots
 
 class AuthRepository {
 
@@ -87,5 +93,37 @@ class AuthRepository {
         } catch (e: Exception) {
             false
         }
+    }
+
+    suspend fun saveRequest(requestData: Map<String, Any>): Boolean {
+        return try {
+            // Use .add() to let Firestore auto-generate a unique ID for the request
+            db.collection("requests").add(requestData).await()
+            Log.d(TAG, "Request saved successfully.")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving request", e)
+            false
+        }
+    }
+
+    fun getRequests(): Flow<List<HelpRequest>> {
+        return db.collection("requests")
+            // Order by most recent posts first
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .snapshots() // This returns a Flow that updates in real-time
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc ->
+                    // Convert each document into a HelpRequest object
+                    HelpRequest(
+                        id = doc.id,
+                        title = doc.getString("title") ?: "",
+                        description = doc.getString("description") ?: "",
+                        category = doc.getString("category") ?: "",
+                        location = "Near...", // You'll update this later
+                        type = if (doc.getString("compensation") == "Volunteer") RequestType.VOLUNTEER else RequestType.FEE
+                    )
+                }
+            }
     }
 }
