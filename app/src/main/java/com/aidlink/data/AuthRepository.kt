@@ -2,22 +2,23 @@ package com.aidlink.data
 
 import android.app.Activity
 import android.util.Log
+import com.aidlink.model.HelpRequest
+import com.aidlink.model.RequestType
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.ktx.snapshots
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
-import com.aidlink.model.HelpRequest
-import com.aidlink.model.RequestType
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.ktx.snapshots
+import com.aidlink.model.UserProfile
 
 class AuthRepository {
 
@@ -97,7 +98,6 @@ class AuthRepository {
 
     suspend fun saveRequest(requestData: Map<String, Any>): Boolean {
         return try {
-            // Use .add() to let Firestore auto-generate a unique ID for the request
             db.collection("requests").add(requestData).await()
             Log.d(TAG, "Request saved successfully.")
             true
@@ -107,23 +107,63 @@ class AuthRepository {
         }
     }
 
-    fun getRequests(): Flow<List<HelpRequest>> {
+    private fun mapDocumentToHelpRequest(doc: com.google.firebase.firestore.DocumentSnapshot): HelpRequest {
+        return HelpRequest(
+            id = doc.id,
+            title = doc.getString("title") ?: "",
+            description = doc.getString("description") ?: "",
+            category = doc.getString("category") ?: "",
+            location = "Near...",
+            type = if (doc.getString("compensation") == "Volunteer") RequestType.VOLUNTEER else RequestType.FEE,
+            status = doc.getString("status") ?: "open"
+        )
+    }
+
+    fun getRequests(currentUserId: String): Flow<List<HelpRequest>> {
         return db.collection("requests")
-            // Order by most recent posts first
+            // 1. First, order by the field you are filtering on
+            .orderBy("userId")
+            // 2. Then, apply the 'not-equal' filter
+            .whereNotEqualTo("userId", currentUserId)
+            // 3. Now, you can add your primary sorting
             .orderBy("createdAt", Query.Direction.DESCENDING)
-            .snapshots() // This returns a Flow that updates in real-time
+            .snapshots()
             .map { snapshot ->
                 snapshot.documents.mapNotNull { doc ->
-                    // Convert each document into a HelpRequest object
-                    HelpRequest(
-                        id = doc.id,
-                        title = doc.getString("title") ?: "",
-                        description = doc.getString("description") ?: "",
-                        category = doc.getString("category") ?: "",
-                        location = "Near...", // You'll update this later
-                        type = if (doc.getString("compensation") == "Volunteer") RequestType.VOLUNTEER else RequestType.FEE
-                    )
+                    mapDocumentToHelpRequest(doc)
                 }
             }
+    }
+
+    fun getMyRequests(userId: String): Flow<List<HelpRequest>> {
+        return db.collection("requests")
+            .whereEqualTo("userId", userId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .snapshots()
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } // <-- Consistency Fix
+            }
+    }
+
+    fun getMyResponses(userId: String): Flow<List<HelpRequest>> {
+        return db.collection("requests")
+            .whereEqualTo("responderId", userId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .snapshots()
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } // <-- Consistency Fix
+            }
+    }
+
+    fun getUserProfile(userId: String): Flow<UserProfile?> {
+        return db.collection("users").document(userId)
+            .snapshots()
+            .map { snapshot ->
+                snapshot.toObject(UserProfile::class.java)
+            }
+    }
+
+    fun logout() {
+        auth.signOut()
     }
 }

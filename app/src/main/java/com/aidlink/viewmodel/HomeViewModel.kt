@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
 import com.aidlink.model.HelpRequest
 import com.google.firebase.Timestamp
-import com.google.firebase.auth.ktx.auth
+import com.google.firebase.auth.ktx.auth // CORRECTED Import
+import com.aidlink.utils.authStateFlow // CORRECTED Import
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,23 +25,40 @@ sealed class RequestUiState {
 
 class HomeViewModel : ViewModel() {
 
-    private val TAG = "HomeViewModel"
+    private val tag = "HomeViewModel"
     private val repository = AuthRepository()
+    private var fetchJob: Job? = null
 
-    private val _requestUiState = MutableStateFlow<RequestUiState>(RequestUiState.Idle)
-    val requestUiState = _requestUiState.asStateFlow()
     private val _requests = MutableStateFlow<List<HelpRequest>>(emptyList())
     val requests: StateFlow<List<HelpRequest>> = _requests.asStateFlow()
 
+    private val _selectedRequest = MutableStateFlow<HelpRequest?>(null)
+    val selectedRequest: StateFlow<HelpRequest?> = _selectedRequest.asStateFlow()
+
+    private val _requestUiState = MutableStateFlow<RequestUiState>(RequestUiState.Idle)
+    val requestUiState = _requestUiState.asStateFlow()
+
     init {
-        fetchRequests()
+        // This is the only init block needed.
+        // It observes changes in the user's login state.
+        viewModelScope.launch {
+            Firebase.auth.authStateFlow().collect { user ->
+                if (user != null) {
+                    fetchRequests(user.uid)
+                } else {
+                    _requests.value = emptyList()
+                    fetchJob?.cancel()
+                }
+            }
+        }
     }
 
-    private fun fetchRequests() {
-        viewModelScope.launch {
-            repository.getRequests()
+    private fun fetchRequests(userId: String) {
+        fetchJob?.cancel()
+        fetchJob = viewModelScope.launch {
+            repository.getRequests(userId)
                 .catch { exception ->
-                    Log.e(TAG, "Error fetching requests", exception)
+                    Log.e(tag, "Error fetching requests", exception)
                 }
                 .collect { requestList ->
                     _requests.value = requestList
@@ -67,7 +86,7 @@ class HomeViewModel : ViewModel() {
                 "createdAt" to Timestamp.now()
             )
 
-            Log.d(TAG, "Attempting to save request: $requestData")
+            Log.d(tag, "Attempting to save request: $requestData")
             val success = repository.saveRequest(requestData)
 
             if (success) {
@@ -76,6 +95,10 @@ class HomeViewModel : ViewModel() {
                 _requestUiState.value = RequestUiState.Error("Failed to post request.")
             }
         }
+    }
+
+    fun getRequestById(requestId: String) {
+        _selectedRequest.value = _requests.value.find { it.id == requestId }
     }
 
     fun resetRequestState() {

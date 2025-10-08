@@ -118,14 +118,14 @@ fun PostRequestScreen(
             FormInput(
                 label = "Title",
                 value = title,
-                onValueChange = { title = it }, // <-- CORRECTED
+                onValueChange = { title = it },
                 placeholder = "e.g., Need help assembling a bookshelf"
             )
 
             FormInput(
                 label = "Description",
                 value = description,
-                onValueChange = { description = it }, // <-- CORRECTED
+                onValueChange = { description = it },
                 placeholder = "Provide more details about the task...",
                 singleLine = false,
                 modifier = Modifier.height(120.dp)
@@ -160,6 +160,8 @@ private fun FormInput(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, color = textDark80, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+
+        // --- CODE RESTORED BELOW ---
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,

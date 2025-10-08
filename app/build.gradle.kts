@@ -15,7 +15,6 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -38,6 +37,9 @@ android {
     buildFeatures {
         compose = true
     }
+    composeOptions {
+        // By keeping this empty, the BOM chooses the correct compiler version
+    }
 }
 
 dependencies {
@@ -52,20 +54,16 @@ dependencies {
 
     // Firebase - BoM must be first!
     implementation(platform(libs.firebase.bom))
+    // CORRECTED: Use the firebase.auth.ktx alias
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore)
 
     // Navigation, ViewModel, and Icons
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.material.icons.extended)
 
     // Testing
     testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    debugImplementation(libs.androidx.compose.ui.tooling)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    // ... rest of testing dependencies
 }

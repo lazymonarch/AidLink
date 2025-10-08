@@ -1,20 +1,17 @@
-# File: gradle/libs.versions.toml
-
 [versions]
-agp = "8.13.0"
-kotlin = "2.0.21"
-coreKtx = "1.10.1"
+agp = "8.13.0"  # CORRECTED: This is a real, stable version
+kotlin = "2.0.0"
+composeBom = "2024.02.02"
+coreKtx = "1.13.1"
 junit = "4.13.2"
-junitVersion = "1.1.5"
-espressoCore = "3.5.1"
-lifecycleRuntimeKtx = "2.6.1"
-activityCompose = "1.8.0"
-composeBom = "2024.09.00"
-googleGmsGoogleServices = "4.4.3"
-# --- CORRECTED ---
-# We only need one version for the Firebase Bill of Materials (BoM)
-firebaseBom = "33.1.1"
-
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+lifecycleRuntimeKtx = "2.8.2"
+activityCompose = "1.9.0"
+googleGmsGoogleServices = "4.4.2"
+firebaseBom = "33.1.2"
+navigationCompose = "2.7.7"
+lifecycleViewmodelCompose = "2.8.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -31,17 +28,15 @@ androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "u
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
-androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version = "2.7.7" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
 
-# --- CORRECTED FIREBASE SECTION ---
-# 1. Define the Bill of Materials (BoM) using the version from above
+# Firebase
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
-
-# 2. Define other Firebase libs WITHOUT versions (the BoM will manage them)
+# CORRECTED: Use firebase-auth-ktx for the extension functions
 firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
-
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

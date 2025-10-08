@@ -6,7 +6,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -87,7 +86,7 @@ fun ProfileSetupScreen(
             Button(
                 onClick = {
                     val skillList = skills.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                    authViewModel.saveUserProfile(name, skillList, area, bio)
+                    authViewModel.saveUserProfile(name, skillList, area)
                 },
                 modifier = Modifier
                     .fillMaxWidth()

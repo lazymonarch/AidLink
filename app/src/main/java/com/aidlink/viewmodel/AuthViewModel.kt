@@ -21,7 +21,7 @@ sealed class AuthUiState {
 
 class AuthViewModel : ViewModel() {
 
-    private val TAG = "AuthViewModel"
+    private val tag = "AuthViewModel"
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState = _uiState.asStateFlow()
     private val authRepository = AuthRepository()
@@ -55,43 +55,47 @@ class AuthViewModel : ViewModel() {
 
     private fun signIn(credential: PhoneAuthCredential) {
         viewModelScope.launch {
-            Log.d(TAG, "Calling repository.signInWithCredential...")
+            Log.d(tag, "Calling repository.signInWithCredential...")
             val user = authRepository.signInWithCredential(credential)
 
             if (user != null) {
-                Log.d(TAG, "Sign-in successful. User UID: ${user.uid}. Checking profile...")
+                Log.d(tag, "Sign-in successful. User UID: ${user.uid}. Checking profile...")
                 val profileExists = authRepository.checkIfProfileExists(user.uid)
                 if (profileExists) {
-                    Log.d(TAG, "Profile exists. Setting state to AuthSuccessExistingUser.")
+                    Log.d(tag, "Profile exists. Setting state to AuthSuccessExistingUser.")
                     _uiState.value = AuthUiState.AuthSuccessExistingUser
                 } else {
-                    Log.d(TAG, "Profile does NOT exist. Setting state to AuthSuccessNewUser.")
+                    Log.d(tag, "Profile does NOT exist. Setting state to AuthSuccessNewUser.")
                     _uiState.value = AuthUiState.AuthSuccessNewUser
                 }
             } else {
-                Log.e(TAG, "Sign-in failed. User is null. Setting state to Error.")
+                Log.e(tag, "Sign-in failed. User is null. Setting state to Error.")
                 _uiState.value = AuthUiState.Error("Authentication failed.")
             }
         }
     }
 
-    fun saveUserProfile(name: String, skills: List<String>, area: String, bio: String) {
+    fun saveUserProfile(name: String, skills: List<String>, area: String) { // bio parameter removed
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
+
             val user = authRepository.getCurrentUser()
             if (user == null) {
                 _uiState.value = AuthUiState.Error("No user is logged in.")
                 return@launch
             }
+
             val userProfile = mapOf(
                 "uid" to user.uid,
                 "name" to name,
                 "skills" to skills,
                 "area" to area,
-                "bio" to bio,
+                "bio" to "", // Save bio as an empty string by default
                 "phone" to (user.phoneNumber ?: "")
             )
+
             val success = authRepository.createUserProfile(user.uid, userProfile)
+
             if (success) {
                 _uiState.value = AuthUiState.AuthSuccessExistingUser
             } else {
