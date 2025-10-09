@@ -28,7 +28,7 @@ import com.aidlink.viewmodel.HomeViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    homeViewModel: HomeViewModel, // CORRECTED: Removed '= viewModel()'
+    homeViewModel: HomeViewModel,
     onPostRequestClicked: () -> Unit,
     onRequestClicked: (String) -> Unit
 ) {
@@ -164,10 +164,38 @@ private fun InfoRow(icon: ImageVector, text: String, iconColor: Color = Color.Gr
 @Preview
 @Composable
 fun HomeScreenPreview() {
+    // --- THIS IS THE CORRECTED SECTION ---
     val previewRequests = listOf(
-        HelpRequest("1", "Need help setting up my new router", "I'm not very tech-savvy...", "Tech", "Approx. 0.5 miles away", RequestType.FEE, status = "open"),
-        HelpRequest("2", "Grocery shopping assistance", "I'm recovering from a minor surgery...", "Shopping", "Approx. 1.2 miles away", RequestType.FEE, status = "open"),
-        HelpRequest("3", "Dog walking needed", "I have an energetic labrador...", "Pet Care", "Approx. 0.8 miles away", RequestType.VOLUNTEER, status = "completed")
+        HelpRequest(
+            id = "1",
+            userId = "", // <-- ADDED DUMMY USER ID
+            title = "Need help setting up my new router",
+            description = "I'm not very tech-savvy...",
+            category = "Tech",
+            location = "Approx. 0.5 miles away",
+            type = RequestType.FEE,
+            status = "open"
+        ),
+        HelpRequest(
+            id = "2",
+            userId = "", // <-- ADDED DUMMY USER ID
+            title = "Grocery shopping assistance",
+            description = "I'm recovering from a minor surgery...",
+            category = "Shopping",
+            location = "Approx. 1.2 miles away",
+            type = RequestType.FEE,
+            status = "open"
+        ),
+        HelpRequest(
+            id = "3",
+            userId = "", // <-- ADDED DUMMY USER ID
+            title = "Dog walking needed",
+            description = "I have an energetic labrador...",
+            category = "Pet Care",
+            location = "Approx. 0.8 miles away",
+            type = RequestType.VOLUNTEER,
+            status = "completed"
+        )
     )
     AidLinkTheme(darkTheme = true) {
         LazyColumn(
@@ -177,7 +205,7 @@ fun HomeScreenPreview() {
             items(previewRequests) { request ->
                 HelpRequestCard(
                     request = request,
-                    onClick = {} // <-- ONCLICK ADDED FOR PREVIEW
+                    onClick = {}
                 )
             }
         }

@@ -56,12 +56,13 @@ class HomeViewModel : ViewModel() {
     private fun fetchRequests(userId: String) {
         fetchJob?.cancel()
         fetchJob = viewModelScope.launch {
-            repository.getRequests(userId)
+            repository.getRequests() // No longer needs userId
                 .catch { exception ->
                     Log.e(tag, "Error fetching requests", exception)
                 }
                 .collect { requestList ->
-                    _requests.value = requestList
+                    // Filter out the current user's own posts here in the ViewModel
+                    _requests.value = requestList.filter { it.userId != userId }
                 }
         }
     }
@@ -118,6 +119,45 @@ class HomeViewModel : ViewModel() {
                 _requestUiState.value = RequestUiState.Success
             } else {
                 _requestUiState.value = RequestUiState.Error("Failed to send offer.")
+            }
+        }
+    }
+
+    fun onAcceptOffer(request: HelpRequest) {
+        viewModelScope.launch {
+            _requestUiState.value = RequestUiState.Loading
+
+            val requesterId = Firebase.auth.currentUser?.uid
+            val helperId = request.responderId
+
+            if (requesterId == null || helperId == null) {
+                _requestUiState.value = RequestUiState.Error("User or responder not found.")
+                return@launch
+            }
+
+            val success = repository.acceptOffer(
+                requestId = request.id,
+                requesterId = requesterId,
+                helperId = helperId
+            )
+
+            if (success) {
+                _requestUiState.value = RequestUiState.Success
+            } else {
+                _requestUiState.value = RequestUiState.Error("Failed to accept offer.")
+            }
+        }
+    }
+
+    // --- NEW FUNCTION ---
+    fun onDeclineOffer(requestId: String) {
+        viewModelScope.launch {
+            _requestUiState.value = RequestUiState.Loading
+            val success = repository.declineOffer(requestId)
+            if (success) {
+                _requestUiState.value = RequestUiState.Success
+            } else {
+                _requestUiState.value = RequestUiState.Error("Failed to decline offer.")
             }
         }
     }

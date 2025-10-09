@@ -12,15 +12,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aidlink.model.HelpRequest
 import com.aidlink.model.RequestType
-import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.HomeViewModel
 import com.aidlink.viewmodel.RequestUiState
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,7 +25,7 @@ fun RequestDetailScreen(
     onBackClicked: () -> Unit
 ) {
     val request by homeViewModel.selectedRequest.collectAsState()
-    val requestUiState by homeViewModel.requestUiState.collectAsState()
+    val uiState by homeViewModel.requestUiState.collectAsState()
 
     DisposableEffect(Unit) {
         onDispose {
@@ -42,16 +38,8 @@ fun RequestDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Request Details") },
-                navigationIcon = {
-                    IconButton(onClick = onBackClicked) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
-                )
+                navigationIcon = { IconButton(onClick = onBackClicked) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black, titleContentColor = Color.White, navigationIconContentColor = Color.White)
             )
         },
         bottomBar = {
@@ -61,32 +49,18 @@ fun RequestDetailScreen(
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // The bottom bar now reacts to the UI state
-                when (requestUiState) {
-                    is RequestUiState.Loading -> {
-                        CircularProgressIndicator(color = Color.White)
-                    }
-                    is RequestUiState.Success -> {
-                        Text("Offer Sent!", color = Color.Green, fontWeight = FontWeight.Bold)
-                    }
-                    is RequestUiState.Error -> {
-                        Text("Something went wrong.", color = MaterialTheme.colorScheme.error)
-                    }
+                when (uiState) {
+                    is RequestUiState.Loading -> CircularProgressIndicator(color = Color.White)
+                    is RequestUiState.Success -> Text("Offer Sent!", color = Color.Green, fontWeight = FontWeight.Bold)
+                    is RequestUiState.Error -> Text((uiState as RequestUiState.Error).message, color = MaterialTheme.colorScheme.error)
                     is RequestUiState.Idle -> {
                         Button(
-                            onClick = {
-                                request?.id?.let {
-                                    homeViewModel.onRespondToRequest(it)
-                                }
-                            },
+                            onClick = { request?.id?.let { homeViewModel.onRespondToRequest(it) } },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(56.dp),
                             shape = RoundedCornerShape(50),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White,
-                                contentColor = Color.Black
-                            )
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
                         ) {
                             Text("I Can Help", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
@@ -107,28 +81,16 @@ fun RequestDetailScreen(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
                 ) {
                     Column(modifier = Modifier.padding(24.dp)) {
-                        Text(
-                            text = it.title,
-                            color = Color.White,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text(text = it.title, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = it.description,
-                            color = Color.LightGray,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        Text(text = it.description, color = Color.LightGray, style = MaterialTheme.typography.bodyLarge)
                         Spacer(modifier = Modifier.height(24.dp))
-
+                        HorizontalDivider(color = Color.DarkGray)
                         DetailRow(label = "Category", value = it.category)
-                        Divider(color = Color.DarkGray)
+                        HorizontalDivider(color = Color.DarkGray)
                         DetailRow(label = "Location", value = it.location)
-                        Divider(color = Color.DarkGray)
-                        val compensationText = when(it.type) {
-                            RequestType.VOLUNTEER -> "Volunteer"
-                            RequestType.FEE -> "Fee"
-                        }
+                        HorizontalDivider(color = Color.DarkGray)
+                        val compensationText = if (it.type == RequestType.FEE) "Fee" else "Volunteer"
                         DetailRow(label = "Compensation", value = compensationText)
                     }
                 }
@@ -137,6 +99,7 @@ fun RequestDetailScreen(
     }
 }
 
+// --- THIS IS THE MISSING FUNCTION ---
 @Composable
 private fun DetailRow(label: String, value: String) {
     Row(
@@ -148,14 +111,5 @@ private fun DetailRow(label: String, value: String) {
     ) {
         Text(text = label, color = Color.Gray, fontSize = 16.sp)
         Text(text = value, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Preview
-@Composable
-fun RequestDetailScreenPreview() {
-    AidLinkTheme(darkTheme = true) {
-        // This preview is static and won't work with a live ViewModel
-        // For a working preview, you'd pass a fake ViewModel
     }
 }

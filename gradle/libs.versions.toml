@@ -12,6 +12,7 @@ googleGmsGoogleServices = "4.4.2"
 firebaseBom = "33.1.2"
 navigationCompose = "2.7.7"
 lifecycleViewmodelCompose = "2.8.2"
+ui = "1.9.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,6 +38,7 @@ firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.r
 # CORRECTED: Use firebase-auth-ktx for the extension functions
 firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

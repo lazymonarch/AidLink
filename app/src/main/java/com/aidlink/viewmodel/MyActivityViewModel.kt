@@ -10,11 +10,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 class MyActivityViewModel : ViewModel() {
 
     private val repository = AuthRepository()
     private val currentUser = Firebase.auth.currentUser
+    private val _actionUiState = MutableStateFlow<RequestUiState>(RequestUiState.Idle)
+    val actionUiState: StateFlow<RequestUiState> = _actionUiState.asStateFlow()
 
     private val _myRequests = MutableStateFlow<List<HelpRequest>>(emptyList())
     val myRequests: StateFlow<List<HelpRequest>> = _myRequests.asStateFlow()
@@ -46,5 +49,44 @@ class MyActivityViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    fun onAcceptOffer(request: HelpRequest) {
+        viewModelScope.launch {
+            _actionUiState.value = RequestUiState.Loading
+            val requesterId = currentUser?.uid
+            val helperId = request.responderId
+
+            if (requesterId == null || helperId == null) {
+                _actionUiState.value = RequestUiState.Error("User or responder not found.")
+                return@launch
+            }
+            val success = repository.acceptOffer(request.id, requesterId, helperId)
+            if (success) {
+                _actionUiState.value = RequestUiState.Success
+                delay(2000) // Wait 2 seconds
+                _actionUiState.value = RequestUiState.Idle
+            } else {
+                _actionUiState.value = RequestUiState.Error("Failed to accept.")
+            }
+        }
+    }
+
+    fun onDeclineOffer(requestId: String) {
+        viewModelScope.launch {
+            _actionUiState.value = RequestUiState.Loading
+            val success = repository.declineOffer(requestId)
+            if (success) {
+                _actionUiState.value = RequestUiState.Success
+                delay(2000) // Wait 2 seconds
+                _actionUiState.value = RequestUiState.Idle
+            } else {
+                _actionUiState.value = RequestUiState.Error("Failed to decline.")
+            }
+        }
+    }
+
+    fun resetActionState() {
+        _actionUiState.value = RequestUiState.Idle
     }
 }

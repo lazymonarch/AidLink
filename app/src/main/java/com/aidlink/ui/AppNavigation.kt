@@ -92,6 +92,21 @@ fun AppNavigation() {
                     }
                 )
             }
+
+            composable(
+                route = "request_detail/{requestId}",
+                arguments = listOf(navArgument("requestId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val requestId = backStackEntry.arguments?.getString("requestId")
+                if (requestId != null) {
+                    homeViewModel.getRequestById(requestId)
+                    RequestDetailScreen(
+                        homeViewModel = homeViewModel,
+                        onBackClicked = { navController.popBackStack() }
+                    )
+                }
+            }
+
             composable("activity") { MyActivityScreen() }
             composable("chats") { ChatsListScreen() }
 
