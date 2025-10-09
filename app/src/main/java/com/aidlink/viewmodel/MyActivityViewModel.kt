@@ -92,8 +92,7 @@ class MyActivityViewModel : ViewModel() {
     fun onCancelRequest(requestId: String) {
         viewModelScope.launch {
             _actionUiState.value = RequestUiState.Loading
-            val success = repository.cancelRequest(requestId)
-            // IMPROVED: Use the helper function for consistency
+            val success = repository.cancelRequest(requestId) // This calls the function we just changed
             handleActionResult(success, "Failed to cancel request.")
         }
     }

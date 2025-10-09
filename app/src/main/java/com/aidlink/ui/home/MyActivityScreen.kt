@@ -166,8 +166,8 @@ fun RequestManagementDialog(
                     when (request.status) {
                         "open" -> OpenRequestActions(onDelete = onDelete)
                         "pending" -> PendingRequestActions(onAccept = onAccept, onDecline = onDecline)
-                        // --- UPDATED: Pass the onCancel function down ---
-                        "in_progress" -> InProgressRequestActions(onCancel = onCancel)
+                        // --- THIS IS THE KEY UI CHANGE ---
+                        "in_progress" -> InProgressRequestActions(onCancel = onCancel) // Pass the onCancel callback
                     }
                 }
 
@@ -208,9 +208,9 @@ fun PendingRequestActions(onAccept: () -> Unit, onDecline: () -> Unit) {
 }
 
 @Composable
-fun InProgressRequestActions(onCancel: () -> Unit) { // <-- Add onCancel parameter
+fun InProgressRequestActions(onCancel: () -> Unit) { // Add the onCancel parameter
     Button(
-        onClick = onCancel, // <-- USE THE CALLBACK HERE
+        onClick = onCancel, // Use the callback
         colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f))
     ) {
         Text("Cancel Request")

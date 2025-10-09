@@ -178,10 +178,16 @@ class AuthRepository {
 
     suspend fun cancelRequest(requestId: String): Boolean {
         return try {
+            // This is now identical to declineOffer
             db.collection("requests").document(requestId)
-                .update("status", "cancelled")
-                .await()
-            Log.d(tag, "Successfully cancelled request: $requestId")
+                .update(
+                    mapOf(
+                        "status" to "open",
+                        "responderId" to FieldValue.delete(),
+                        "responderName" to FieldValue.delete()
+                    )
+                ).await()
+            Log.d(tag, "Successfully cancelled request (reverted to open): $requestId")
             true
         } catch (e: Exception) {
             Log.e(tag, "Error cancelling request", e)
