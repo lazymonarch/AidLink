@@ -1,9 +1,9 @@
 package com.aidlink.ui
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -17,8 +17,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 
 sealed class BottomNavItem(val route: String, val icon: ImageVector, val label: String) {
     object Home : BottomNavItem("home", Icons.Default.Home, "Home")
-    object MyActivity : BottomNavItem("activity", Icons.Default.List, "My Activity")
-    object Chats : BottomNavItem("chats", Icons.Default.Chat, "Chats")
+    object MyActivity : BottomNavItem("activity", Icons.AutoMirrored.Filled.List, "My Activity")
+    object Chats : BottomNavItem("chats", Icons.AutoMirrored.Filled.Chat, "Chats")
     object Profile : BottomNavItem("profile", Icons.Default.Person, "Profile")
 }
 

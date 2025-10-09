@@ -5,9 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
 import com.aidlink.model.HelpRequest
+import com.aidlink.utils.authStateFlow
 import com.google.firebase.Timestamp
-import com.google.firebase.auth.ktx.auth // CORRECTED Import
-import com.aidlink.utils.authStateFlow // CORRECTED Import
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,8 +39,6 @@ class HomeViewModel : ViewModel() {
     val requestUiState = _requestUiState.asStateFlow()
 
     init {
-        // This is the only init block needed.
-        // It observes changes in the user's login state.
         viewModelScope.launch {
             Firebase.auth.authStateFlow().collect { user ->
                 if (user != null) {
@@ -56,12 +54,9 @@ class HomeViewModel : ViewModel() {
     private fun fetchRequests(userId: String) {
         fetchJob?.cancel()
         fetchJob = viewModelScope.launch {
-            repository.getRequests() // No longer needs userId
-                .catch { exception ->
-                    Log.e(tag, "Error fetching requests", exception)
-                }
+            repository.getRequests()
+                .catch { exception -> Log.e(tag, "Error fetching requests", exception) }
                 .collect { requestList ->
-                    // Filter out the current user's own posts here in the ViewModel
                     _requests.value = requestList.filter { it.userId != userId }
                 }
         }
@@ -119,45 +114,6 @@ class HomeViewModel : ViewModel() {
                 _requestUiState.value = RequestUiState.Success
             } else {
                 _requestUiState.value = RequestUiState.Error("Failed to send offer.")
-            }
-        }
-    }
-
-    fun onAcceptOffer(request: HelpRequest) {
-        viewModelScope.launch {
-            _requestUiState.value = RequestUiState.Loading
-
-            val requesterId = Firebase.auth.currentUser?.uid
-            val helperId = request.responderId
-
-            if (requesterId == null || helperId == null) {
-                _requestUiState.value = RequestUiState.Error("User or responder not found.")
-                return@launch
-            }
-
-            val success = repository.acceptOffer(
-                requestId = request.id,
-                requesterId = requesterId,
-                helperId = helperId
-            )
-
-            if (success) {
-                _requestUiState.value = RequestUiState.Success
-            } else {
-                _requestUiState.value = RequestUiState.Error("Failed to accept offer.")
-            }
-        }
-    }
-
-    // --- NEW FUNCTION ---
-    fun onDeclineOffer(requestId: String) {
-        viewModelScope.launch {
-            _requestUiState.value = RequestUiState.Loading
-            val success = repository.declineOffer(requestId)
-            if (success) {
-                _requestUiState.value = RequestUiState.Success
-            } else {
-                _requestUiState.value = RequestUiState.Error("Failed to decline offer.")
             }
         }
     }

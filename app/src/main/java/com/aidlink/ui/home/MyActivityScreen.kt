@@ -11,6 +11,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,9 +29,9 @@ import com.aidlink.model.HelpRequest
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.MyActivityViewModel
 import com.aidlink.viewmodel.RequestUiState
-import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
-import com.google.firebase.auth.auth
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
@@ -47,21 +49,21 @@ fun MyActivityScreen(
     val myResponses by myActivityViewModel.myResponses.collectAsState()
     val completedRequests by myActivityViewModel.completedRequests.collectAsState()
 
-    // NEW: This state now holds the request to show in the dialog
-    var requestToShowInDialog by remember { mutableStateOf<HelpRequest?>(null) }
+    var requestInDialog by remember { mutableStateOf<HelpRequest?>(null) }
     val actionUiState by myActivityViewModel.actionUiState.collectAsState()
 
-    // --- NEW: The Floating Card Dialog ---
-    if (requestToShowInDialog != null) {
-        OfferManagementDialog(
-            request = requestToShowInDialog!!,
+    if (requestInDialog != null) {
+        RequestManagementDialog(
+            request = requestInDialog!!,
             actionUiState = actionUiState,
             onDismiss = {
-                requestToShowInDialog = null
+                requestInDialog = null
                 myActivityViewModel.resetActionState()
             },
-            onAccept = { myActivityViewModel.onAcceptOffer(requestToShowInDialog!!) },
-            onDecline = { myActivityViewModel.onDeclineOffer(requestToShowInDialog!!.id) }
+            onAccept = { myActivityViewModel.onAcceptOffer(requestInDialog!!) },
+            onDecline = { myActivityViewModel.onDeclineOffer(requestInDialog!!.id) },
+            onDelete = { myActivityViewModel.onDeleteRequest(requestInDialog!!.id) },
+            onCancel = { myActivityViewModel.onCancelRequest(requestInDialog!!.id) }
         )
     }
 
@@ -95,8 +97,8 @@ fun MyActivityScreen(
 
             HorizontalPager(state = pagerState) { page ->
                 val (listToShow, emptyMessage) = when (page) {
-                    0 -> myRequests to "You haven't posted any requests yet."
-                    1 -> myResponses to "You haven't responded to any requests yet."
+                    0 -> myRequests to "You haven't posted any requests."
+                    1 -> myResponses to "You haven't responded to any requests."
                     2 -> completedRequests to "You have no completed requests."
                     else -> emptyList<HelpRequest>() to ""
                 }
@@ -109,11 +111,8 @@ fun MyActivityScreen(
                             ActivityItemRow(
                                 request = request,
                                 onClick = {
-                                    // Only show the dialog if the user is the owner and status is pending
-                                    if (request.status == "pending" && request.userId == currentUser?.uid) {
-                                        requestToShowInDialog = request
-                                    } else {
-                                        // Later, you can navigate to a simple read-only detail screen here if you want
+                                    if (request.userId == currentUser?.uid && request.status != "completed") {
+                                        requestInDialog = request
                                     }
                                 }
                             )
@@ -125,14 +124,15 @@ fun MyActivityScreen(
     }
 }
 
-// --- CORRECTED ActivityItemRow ---
 @Composable
-fun OfferManagementDialog(
+fun RequestManagementDialog(
     request: HelpRequest,
     actionUiState: RequestUiState,
     onDismiss: () -> Unit,
     onAccept: () -> Unit,
-    onDecline: () -> Unit
+    onDecline: () -> Unit,
+    onDelete: () -> Unit,
+    onCancel: () -> Unit // <-- Add onCancel parameter
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -145,31 +145,75 @@ fun OfferManagementDialog(
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
+                // Main content is always visible during Idle state
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = when (request.status) {
+                            "open" -> "Manage Your Request"
+                            "pending" -> "Offer from: ${request.responderName}"
+                            "in_progress" -> "Request in Progress"
+                            else -> "Request Details"
+                        },
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    when (request.status) {
+                        "open" -> OpenRequestActions(onDelete = onDelete)
+                        "pending" -> PendingRequestActions(onAccept = onAccept, onDecline = onDecline)
+                        // --- UPDATED: Pass the onCancel function down ---
+                        "in_progress" -> InProgressRequestActions(onCancel = onCancel)
+                    }
+                }
+
+                // Overlay for loading/success/error states
                 when (actionUiState) {
                     is RequestUiState.Loading -> CircularProgressIndicator(color = Color.White)
                     is RequestUiState.Success -> Text("Success!", color = Color.Green, fontWeight = FontWeight.Bold)
-                    is RequestUiState.Error -> Text(actionUiState.message, color = MaterialTheme.colorScheme.error)
-                    is RequestUiState.Idle -> {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Offer from: ${request.responderName}", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                Button(
-                                    onClick = onAccept,
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Green)
-                                ) { Text("Accept", color = Color.Black) }
-                                OutlinedButton(
-                                    onClick = onDecline,
-                                    modifier = Modifier.weight(1f),
-                                    border = BorderStroke(1.dp, Color.Gray)
-                                ) { Text("Decline", color = Color.White) }
-                            }
-                        }
-                    }
+                    is RequestUiState.Error -> Text(actionUiState.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                    is RequestUiState.Idle -> { /* Show main content */ }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun OpenRequestActions(onDelete: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Button(onClick = { /* TODO: Navigate to Edit Screen */ }, modifier = Modifier.weight(1f)) {
+            Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Edit")
+        }
+        OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red), border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))) {
+            Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Delete")
+        }
+    }
+}
+
+@Composable
+fun PendingRequestActions(onAccept: () -> Unit, onDecline: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Button(onClick = onAccept, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.Green)) { Text("Accept", color = Color.Black) }
+        OutlinedButton(onClick = onDecline, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, Color.Gray)) { Text("Decline", color = Color.White) }
+    }
+}
+
+@Composable
+fun InProgressRequestActions(onCancel: () -> Unit) { // <-- Add onCancel parameter
+    Button(
+        onClick = onCancel, // <-- USE THE CALLBACK HERE
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f))
+    ) {
+        Text("Cancel Request")
     }
 }
 
@@ -205,8 +249,6 @@ fun ActivityItemRow(
         }
     }
 }
-
-// --- HELPER FUNCTIONS (Included for completeness) ---
 
 @Composable
 fun EmptyState(message: String) {

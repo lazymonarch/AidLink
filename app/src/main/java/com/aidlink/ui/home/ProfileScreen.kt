@@ -82,12 +82,8 @@ fun ProfileScreen(
                             .padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
                     )
                 }
-                if (reviews.isEmpty()) {
-                    item { Text("No reviews yet.", color = Color.Gray, modifier = Modifier.padding(16.dp)) }
-                } else {
-                    items(reviews) { review ->
-                        ReviewCard(review = review, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                    }
+                items(reviews) { review ->
+                    ReviewCard(review = review, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
                 item {
                     Column(modifier = Modifier.padding(top = 24.dp)) {

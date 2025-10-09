@@ -4,22 +4,22 @@ import android.app.Activity
 import android.util.Log
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.RequestType
+import com.aidlink.model.UserProfile
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
-import com.aidlink.model.UserProfile
-import com.google.firebase.firestore.snapshots
-import com.google.firebase.firestore.FieldValue
 
 class AuthRepository {
 
@@ -29,7 +29,7 @@ class AuthRepository {
 
     fun getCurrentUser() = auth.currentUser
 
-    fun sendOtp(
+    suspend fun sendOtp(
         phone: String,
         activity: Activity,
         onCodeSent: (String) -> Unit,
@@ -40,19 +40,13 @@ class AuthRepository {
             override fun onVerificationCompleted(credential: PhoneAuthCredential) {
                 onVerificationCompleted(credential)
             }
-
             override fun onVerificationFailed(e: FirebaseException) {
                 onVerificationFailed(e)
             }
-
-            override fun onCodeSent(
-                verificationId: String,
-                token: PhoneAuthProvider.ForceResendingToken
-            ) {
+            override fun onCodeSent(verificationId: String, token: PhoneAuthProvider.ForceResendingToken) {
                 onCodeSent(verificationId)
             }
         }
-
         val options = PhoneAuthOptions.newBuilder(auth)
             .setPhoneNumber(phone)
             .setTimeout(60L, TimeUnit.SECONDS)
@@ -84,7 +78,7 @@ class AuthRepository {
         return try {
             db.collection("users").document(uid).get().await().exists()
         } catch (e: Exception) {
-            Log.e(tag, "Error checking if profile exists", e) // Log the error
+            Log.e(tag, "Error checking if profile exists", e)
             false
         }
     }
@@ -92,10 +86,11 @@ class AuthRepository {
     suspend fun createUserProfile(uid: String, profile: Map<String, Any>): Boolean {
         return try {
             db.collection("users").document(uid).set(profile).await()
+            true // Correctly return true on success
         } catch (e: Exception) {
             Log.e(tag, "Error creating user profile", e)
             false
-        } as Boolean
+        }
     }
 
     suspend fun saveRequest(requestData: Map<String, Any>): Boolean {
@@ -112,13 +107,11 @@ class AuthRepository {
     suspend fun addResponderToRequest(requestId: String, responderId: String, responderName: String): Boolean {
         return try {
             db.collection("requests").document(requestId)
-                .update(
-                    mapOf(
-                        "status" to "pending",
-                        "responderId" to responderId,
-                        "responderName" to responderName
-                    )
-                ).await()
+                .update(mapOf(
+                    "status" to "pending",
+                    "responderId" to responderId,
+                    "responderName" to responderName
+                )).await()
             Log.d(tag, "Successfully added responder to request $requestId")
             true
         } catch (e: Exception) {
@@ -139,22 +132,15 @@ class AuthRepository {
     suspend fun acceptOffer(requestId: String, requesterId: String, helperId: String): Boolean {
         return try {
             val requestDocRef = db.collection("requests").document(requestId)
-            val chatDocRef = db.collection("chats").document(requestId) // Use request ID as chat ID
-
+            val chatDocRef = db.collection("chats").document(requestId)
             val chatData = mapOf(
                 "participants" to listOf(requesterId, helperId),
                 "createdAt" to com.google.firebase.Timestamp.now()
             )
-
-            // A batched write ensures both operations succeed or both fail together
             db.runBatch { batch ->
-                // 1. Update the request status to "in_progress"
                 batch.update(requestDocRef, "status", "in_progress")
-
-                // 2. Create the new chat document
                 batch.set(chatDocRef, chatData)
             }.await()
-
             Log.d(tag, "Offer accepted and chat created for request: $requestId")
             true
         } catch (e: Exception) {
@@ -166,13 +152,11 @@ class AuthRepository {
     suspend fun declineOffer(requestId: String): Boolean {
         return try {
             db.collection("requests").document(requestId)
-                .update(
-                    mapOf(
-                        "status" to "open",
-                        "responderId" to FieldValue.delete(), // Removes the responder's ID
-                        "responderName" to FieldValue.delete() // Removes the responder's name
-                    )
-                ).await()
+                .update(mapOf(
+                    "status" to "open",
+                    "responderId" to FieldValue.delete(),
+                    "responderName" to FieldValue.delete()
+                )).await()
             Log.d(tag, "Successfully declined offer for request $requestId")
             true
         } catch (e: Exception) {
@@ -181,10 +165,45 @@ class AuthRepository {
         }
     }
 
+    suspend fun deleteRequest(requestId: String): Boolean {
+        return try {
+            db.collection("requests").document(requestId).delete().await()
+            Log.d(tag, "Successfully deleted request: $requestId")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error deleting request", e)
+            false
+        }
+    }
+
+    suspend fun cancelRequest(requestId: String): Boolean {
+        return try {
+            db.collection("requests").document(requestId)
+                .update("status", "cancelled")
+                .await()
+            Log.d(tag, "Successfully cancelled request: $requestId")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error cancelling request", e)
+            false
+        }
+    }
+
+    suspend fun editRequest(requestId: String, updatedData: Map<String, Any>): Boolean {
+        return try {
+            db.collection("requests").document(requestId).update(updatedData).await()
+            Log.d(tag, "Successfully edited request: $requestId")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error editing request", e)
+            false
+        }
+    }
+
     private fun mapDocumentToHelpRequest(doc: com.google.firebase.firestore.DocumentSnapshot): HelpRequest {
         return HelpRequest(
             id = doc.id,
-            userId = doc.getString("userId") ?: "", // <-- ADD THIS LINE
+            userId = doc.getString("userId") ?: "",
             title = doc.getString("title") ?: "",
             description = doc.getString("description") ?: "",
             category = doc.getString("category") ?: "",
@@ -202,11 +221,7 @@ class AuthRepository {
             .whereEqualTo("status", "open")
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .snapshots()
-            .map { snapshot ->
-                snapshot.documents.mapNotNull { doc ->
-                    mapDocumentToHelpRequest(doc)
-                }
-            }
+            .map { snapshot -> snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } }
     }
 
     fun getMyRequests(userId: String): Flow<List<HelpRequest>> {
@@ -214,9 +229,7 @@ class AuthRepository {
             .whereEqualTo("userId", userId)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .snapshots()
-            .map { snapshot ->
-                snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } // <-- Consistency Fix
-            }
+            .map { snapshot -> snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } }
     }
 
     fun getMyResponses(userId: String): Flow<List<HelpRequest>> {
@@ -224,17 +237,13 @@ class AuthRepository {
             .whereEqualTo("responderId", userId)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .snapshots()
-            .map { snapshot ->
-                snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } // <-- Consistency Fix
-            }
+            .map { snapshot -> snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } }
     }
 
     fun getUserProfile(userId: String): Flow<UserProfile?> {
         return db.collection("users").document(userId)
             .snapshots()
-            .map { snapshot ->
-                snapshot.toObject(UserProfile::class.java)
-            }
+            .map { snapshot -> snapshot.toObject(UserProfile::class.java) }
     }
 
     fun logout() {

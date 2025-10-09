@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.aidlink.model.Chat
 import com.aidlink.ui.theme.AidLinkTheme
 import androidx.compose.foundation.border
+import androidx.compose.material3.HorizontalDivider
 
 // You'll need to add some placeholder avatar drawables to your res/drawable folder
 // For example, create R.drawable.avatar_1, R.drawable.avatar_2, etc.
@@ -68,7 +69,7 @@ fun ChatsListScreen() {
         ) {
             items(chats) { chat ->
                 ChatItemRow(chat = chat)
-                Divider(color = Color.DarkGray)
+                HorizontalDivider(Modifier, DividerDefaults.Thickness, color = Color.DarkGray)
             }
         }
     }
