@@ -32,13 +32,15 @@ import com.aidlink.viewmodel.RequestUiState
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MyActivityScreen(
-    myActivityViewModel: MyActivityViewModel = viewModel()
+    myActivityViewModel: MyActivityViewModel,
+    onNavigateToChat: (chatId: String, otherUserName: String) -> Unit
 ) {
     val tabTitles = listOf("My Requests", "My Responses", "Completed")
     val pagerState = rememberPagerState { tabTitles.size }
@@ -52,12 +54,21 @@ fun MyActivityScreen(
     var requestInDialog by remember { mutableStateOf<HelpRequest?>(null) }
     val actionUiState by myActivityViewModel.actionUiState.collectAsState()
 
+    LaunchedEffect(actionUiState) {
+        if (actionUiState is RequestUiState.Success) {
+            delay(1500) // Wait for the "Success!" message to be visible
+            requestInDialog = null // This closes the dialog
+            myActivityViewModel.resetActionState()
+        }
+    }
+
+    // This 'if' block now only shows the dialog
     if (requestInDialog != null) {
         RequestManagementDialog(
             request = requestInDialog!!,
             actionUiState = actionUiState,
             onDismiss = {
-                requestInDialog = null
+                requestInDialog = null // This ensures tapping outside the dialog closes it
                 myActivityViewModel.resetActionState()
             },
             onAccept = { myActivityViewModel.onAcceptOffer(requestInDialog!!) },
@@ -111,6 +122,7 @@ fun MyActivityScreen(
                             ActivityItemRow(
                                 request = request,
                                 onClick = {
+                                    // Only open the management dialog for the user's own, non-completed posts
                                     if (request.userId == currentUser?.uid && request.status != "completed") {
                                         requestInDialog = request
                                     }
@@ -124,6 +136,7 @@ fun MyActivityScreen(
     }
 }
 
+// The "Smart" Floating Dialog
 @Composable
 fun RequestManagementDialog(
     request: HelpRequest,
@@ -132,7 +145,7 @@ fun RequestManagementDialog(
     onAccept: () -> Unit,
     onDecline: () -> Unit,
     onDelete: () -> Unit,
-    onCancel: () -> Unit // <-- Add onCancel parameter
+    onCancel: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -166,8 +179,7 @@ fun RequestManagementDialog(
                     when (request.status) {
                         "open" -> OpenRequestActions(onDelete = onDelete)
                         "pending" -> PendingRequestActions(onAccept = onAccept, onDecline = onDecline)
-                        // --- THIS IS THE KEY UI CHANGE ---
-                        "in_progress" -> InProgressRequestActions(onCancel = onCancel) // Pass the onCancel callback
+                        "in_progress" -> InProgressRequestActions(onCancel = onCancel)
                     }
                 }
 
@@ -208,9 +220,9 @@ fun PendingRequestActions(onAccept: () -> Unit, onDecline: () -> Unit) {
 }
 
 @Composable
-fun InProgressRequestActions(onCancel: () -> Unit) { // Add the onCancel parameter
+fun InProgressRequestActions(onCancel: () -> Unit) {
     Button(
-        onClick = onCancel, // Use the callback
+        onClick = onCancel,
         colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f))
     ) {
         Text("Cancel Request")
@@ -292,6 +304,7 @@ private fun formatTimestamp(timestamp: Timestamp?): String {
 @Composable
 fun MyActivityScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        MyActivityScreen()
+        // CORRECTED: Pass dummy parameters to the preview
+        MyActivityScreen(myActivityViewModel = viewModel(), onNavigateToChat = { _, _ -> })
     }
 }

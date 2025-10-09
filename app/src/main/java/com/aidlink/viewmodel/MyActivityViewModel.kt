@@ -97,11 +97,10 @@ class MyActivityViewModel : ViewModel() {
         }
     }
 
-    private suspend fun handleActionResult(success: Boolean, errorMessage: String) {
+    private fun handleActionResult(success: Boolean, errorMessage: String) {
         if (success) {
             _actionUiState.value = RequestUiState.Success
-            delay(1500)
-            resetActionState()
+            // REMOVED: The delay and reset logic is now handled by the UI
         } else {
             _actionUiState.value = RequestUiState.Error(errorMessage)
         }

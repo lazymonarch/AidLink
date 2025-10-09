@@ -8,7 +8,7 @@ enum class RequestType {
 
 data class HelpRequest(
     val id: String,
-    val userId: String = "", // <-- ADD THIS LINE
+    val userId: String = "",
     val title: String,
     val description: String,
     val category: String,

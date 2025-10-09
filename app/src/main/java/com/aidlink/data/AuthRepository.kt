@@ -2,7 +2,9 @@ package com.aidlink.data
 
 import android.app.Activity
 import android.util.Log
+import com.aidlink.model.Chat
 import com.aidlink.model.HelpRequest
+import com.aidlink.model.Message
 import com.aidlink.model.RequestType
 import com.aidlink.model.UserProfile
 import com.google.firebase.FirebaseException
@@ -86,7 +88,7 @@ class AuthRepository {
     suspend fun createUserProfile(uid: String, profile: Map<String, Any>): Boolean {
         return try {
             db.collection("users").document(uid).set(profile).await()
-            true // Correctly return true on success
+            true // CORRECTED: Ensures true is returned on success
         } catch (e: Exception) {
             Log.e(tag, "Error creating user profile", e)
             false
@@ -221,6 +223,59 @@ class AuthRepository {
             responderName = doc.getString("responderName")
         )
     }
+
+    fun getChats(userId: String): Flow<List<Chat>> {
+        return db.collection("chats")
+            .whereArrayContains("participants", userId)
+            .snapshots()
+            .map { snapshot ->
+                snapshot.documents.mapNotNull { doc ->
+                    // --- THIS IS THE SAFER WAY TO CAST ---
+                    val participants = doc.get("participants")
+                    if (participants is List<*>) { // Check if it's a List of anything
+                        @Suppress("UNCHECKED_CAST") // This is now safe, so we can suppress the warning
+                        val participantIds = participants as List<String>
+                        val otherUserId = participantIds.firstOrNull { it != userId } ?: ""
+
+                        Chat(
+                            id = doc.id,
+                            userName = "User ${otherUserId.take(4)}",
+                            lastMessage = "...",
+                            timestamp = "",
+                            unreadCount = 0,
+                            isOnline = false,
+                            avatarUrl = ""
+                        )
+                    } else {
+                        null // If it's not a list, ignore this chat document
+                    }
+                }
+            }
+    }
+
+    fun getMessages(chatId: String): Flow<List<Message>> {
+        return db.collection("chats").document(chatId)
+            .collection("messages")
+            .orderBy("timestamp", Query.Direction.ASCENDING)
+            .snapshots()
+            .map { snapshot ->
+                snapshot.toObjects(Message::class.java)
+            }
+    }
+
+    suspend fun sendMessage(chatId: String, message: Message): Boolean {
+        return try {
+            db.collection("chats").document(chatId)
+                .collection("messages")
+                .add(message)
+                .await()
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error sending message", e)
+            false
+        }
+    }
+
 
     fun getRequests(): Flow<List<HelpRequest>> {
         return db.collection("requests")

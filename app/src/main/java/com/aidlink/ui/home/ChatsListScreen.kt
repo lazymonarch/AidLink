@@ -22,22 +22,23 @@ import androidx.compose.ui.unit.sp
 import com.aidlink.model.Chat
 import com.aidlink.ui.theme.AidLinkTheme
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aidlink.viewmodel.ChatViewModel
 
 // You'll need to add some placeholder avatar drawables to your res/drawable folder
 // For example, create R.drawable.avatar_1, R.drawable.avatar_2, etc.
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatsListScreen() {
-    // Dummy data for the chat list
-    val chats = listOf(
-        Chat("1", "Liam Carter", "Sure, I can help with that!", "10:42 AM", 2, true, "avatar_1"),
-        Chat("2", "Sophia Bennett", "I'm available tomorrow afternoon.", "Yesterday", 0, false, "avatar_2"),
-        Chat("3", "Ethan Walker", "Thanks for offering your help!", "Mon", 0, false, "avatar_3"),
-        Chat("4", "Olivia Hayes", "No problem at all, happy to assist.", "Sun", 0, true, "avatar_4"),
-        Chat("5", "Noah Foster", "Let me know if you need anything else.", "10/15/23", 0, false, "avatar_5")
-    )
+fun ChatsListScreen(
+    chatViewModel: ChatViewModel,
+    onChatClicked: (chatId: String, userName: String) -> Unit
+) {
+    val chats by chatViewModel.chats.collectAsState()
 
     Scaffold(
         containerColor = Color.Black,
@@ -68,7 +69,9 @@ fun ChatsListScreen() {
             contentPadding = PaddingValues(horizontal = 16.dp)
         ) {
             items(chats) { chat ->
-                ChatItemRow(chat = chat)
+                Box(modifier = Modifier.clickable { onChatClicked(chat.id, chat.userName) }) {
+                    ChatItemRow(chat = chat)
+                }
                 HorizontalDivider(Modifier, DividerDefaults.Thickness, color = Color.DarkGray)
             }
         }
@@ -132,6 +135,7 @@ fun ChatItemRow(chat: Chat) {
 @Composable
 fun ChatsListScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        ChatsListScreen()
+        // CORRECTED: Pass dummy parameters to the preview
+        ChatsListScreen(chatViewModel = viewModel(), onChatClicked = { _, _ -> })
     }
 }

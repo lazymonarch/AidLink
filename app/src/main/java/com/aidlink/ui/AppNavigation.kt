@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -18,15 +19,17 @@ import com.aidlink.ui.auth.OtpVerificationScreen
 import com.aidlink.ui.auth.ProfileSetupScreen
 import com.aidlink.ui.home.*
 import com.aidlink.viewmodel.AuthViewModel
+import com.aidlink.viewmodel.ChatViewModel
 import com.aidlink.viewmodel.HomeViewModel
+import com.aidlink.viewmodel.MyActivityViewModel
 import com.aidlink.viewmodel.ProfileViewModel
-import androidx.compose.runtime.collectAsState
-
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
     val homeViewModel: HomeViewModel = viewModel()
+    val myActivityViewModel: MyActivityViewModel = viewModel()
+    val chatViewModel: ChatViewModel = viewModel()
 
     val bottomBarRoutes = setOf("home", "activity", "chats", "profile")
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -93,35 +96,32 @@ fun AppNavigation() {
                 )
             }
 
-            composable(
-                route = "request_detail/{requestId}",
-                arguments = listOf(navArgument("requestId") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val requestId = backStackEntry.arguments?.getString("requestId")
-                if (requestId != null) {
-                    homeViewModel.getRequestById(requestId)
-                    RequestDetailScreen(
-                        homeViewModel = homeViewModel,
-                        onBackClicked = { navController.popBackStack() }
-                    )
-                }
+            // --- UPDATED 'activity' ROUTE ---
+            composable("activity") {
+                MyActivityScreen(
+                    myActivityViewModel = myActivityViewModel,
+                    onNavigateToChat = { chatId, otherUserName ->
+                        navController.navigate("chat/$chatId/$otherUserName")
+                    }
+                )
             }
 
-            composable("activity") { MyActivityScreen() }
-            composable("chats") { ChatsListScreen() }
+            // --- UPDATED 'chats' ROUTE ---
+            composable("chats") {
+                ChatsListScreen(
+                    chatViewModel = chatViewModel,
+                    onChatClicked = { chatId, userName ->
+                        navController.navigate("chat/$chatId/$userName")
+                    }
+                )
+            }
 
-            // --- THIS BLOCK IS UPDATED ---
             composable("profile") {
                 val profileViewModel: ProfileViewModel = viewModel()
                 val isLoggedOut by profileViewModel.isLoggedOut.collectAsState()
-
-                // Listen for the logout state to navigate
                 LaunchedEffect(isLoggedOut) {
                     if (isLoggedOut) {
-                        // Navigate to login and clear the entire back stack
-                        navController.navigate("login") {
-                            popUpTo(0) { inclusive = true }
-                        }
+                        navController.navigate("login") { popUpTo(0) { inclusive = true } }
                     }
                 }
                 ProfileScreen(profileViewModel = profileViewModel)
@@ -147,6 +147,24 @@ fun AppNavigation() {
                         onBackClicked = { navController.popBackStack() }
                     )
                 }
+            }
+
+            // --- NEW 'chat' ROUTE ---
+            composable(
+                route = "chat/{chatId}/{userName}",
+                arguments = listOf(
+                    navArgument("chatId") { type = NavType.StringType },
+                    navArgument("userName") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
+                val userName = backStackEntry.arguments?.getString("userName") ?: "Chat"
+                ChatScreen(
+                    chatId = chatId,
+                    otherUserName = userName,
+                    chatViewModel = chatViewModel,
+                    onBackClicked = { navController.popBackStack() }
+                )
             }
         }
     }
