@@ -65,6 +65,8 @@ fun RequestDetailScreen(
                             Text("I Can Help", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                    // This 'else' makes the block exhaustive and handles any other state
+                    else -> { /* Do nothing for other states like NavigateToChat */ }
                 }
             }
         }
@@ -98,8 +100,6 @@ fun RequestDetailScreen(
         }
     }
 }
-
-// --- THIS IS THE MISSING FUNCTION ---
 @Composable
 private fun DetailRow(label: String, value: String) {
     Row(

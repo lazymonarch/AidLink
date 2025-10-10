@@ -24,13 +24,13 @@ class ChatViewModel : ViewModel() {
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
 
     init {
-        // CORRECTED: Observe the auth state to fetch data reliably
+        // CORRECTED: This now reliably fetches data on login
         viewModelScope.launch {
             Firebase.auth.authStateFlow().collect { user ->
                 if (user != null) {
                     fetchChats(user.uid)
                 } else {
-                    _chats.value = emptyList() // Clear chats on logout
+                    _chats.value = emptyList()
                 }
             }
         }

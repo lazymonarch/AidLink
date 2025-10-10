@@ -28,13 +28,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.model.HelpRequest
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.MyActivityViewModel
-import com.aidlink.viewmodel.RequestUiState
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
+import com.aidlink.viewmodel.MyActivityUiState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -54,21 +53,13 @@ fun MyActivityScreen(
     var requestInDialog by remember { mutableStateOf<HelpRequest?>(null) }
     val actionUiState by myActivityViewModel.actionUiState.collectAsState()
 
-    LaunchedEffect(actionUiState) {
-        if (actionUiState is RequestUiState.Success) {
-            delay(1500) // Wait for the "Success!" message to be visible
-            requestInDialog = null // This closes the dialog
-            myActivityViewModel.resetActionState()
-        }
-    }
-
-    // This 'if' block now only shows the dialog
+    // --- The Floating Card Dialog Logic ---
     if (requestInDialog != null) {
         RequestManagementDialog(
             request = requestInDialog!!,
             actionUiState = actionUiState,
             onDismiss = {
-                requestInDialog = null // This ensures tapping outside the dialog closes it
+                requestInDialog = null
                 myActivityViewModel.resetActionState()
             },
             onAccept = { myActivityViewModel.onAcceptOffer(requestInDialog!!) },
@@ -76,6 +67,14 @@ fun MyActivityScreen(
             onDelete = { myActivityViewModel.onDeleteRequest(requestInDialog!!.id) },
             onCancel = { myActivityViewModel.onCancelRequest(requestInDialog!!.id) }
         )
+    }
+
+    LaunchedEffect(actionUiState) {
+        if (actionUiState is MyActivityUiState.NavigateToChat) {
+            val navState = actionUiState as MyActivityUiState.NavigateToChat
+            onNavigateToChat(navState.chatId, navState.otherUserName)
+            myActivityViewModel.resetActionState()
+        }
     }
 
     Scaffold(
@@ -117,15 +116,12 @@ fun MyActivityScreen(
                 if (listToShow.isEmpty()) {
                     EmptyState(message = emptyMessage)
                 } else {
-                    LazyColumn(
-                        // --- THIS IS THE FIX ---
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp)
-                    ) {
+                    LazyColumn(contentPadding = PaddingValues(16.dp)) {
                         items(listToShow) { request ->
                             ActivityItemRow(
                                 request = request,
                                 onClick = {
+                                    // Only open the management dialog for the user's own, non-completed posts
                                     if (request.userId == currentUser?.uid && request.status != "completed") {
                                         requestInDialog = request
                                     }
@@ -139,11 +135,10 @@ fun MyActivityScreen(
     }
 }
 
-// The "Smart" Floating Dialog
 @Composable
 fun RequestManagementDialog(
     request: HelpRequest,
-    actionUiState: RequestUiState,
+    actionUiState: MyActivityUiState, // <-- CORRECTED TYPE
     onDismiss: () -> Unit,
     onAccept: () -> Unit,
     onDecline: () -> Unit,
@@ -187,11 +182,12 @@ fun RequestManagementDialog(
                 }
 
                 // Overlay for loading/success/error states
-                when (actionUiState) {
-                    is RequestUiState.Loading -> CircularProgressIndicator(color = Color.White)
-                    is RequestUiState.Success -> Text("Success!", color = Color.Green, fontWeight = FontWeight.Bold)
-                    is RequestUiState.Error -> Text(actionUiState.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
-                    is RequestUiState.Idle -> { /* Show main content */ }
+                when (val state = actionUiState) {
+                    is MyActivityUiState.Loading -> CircularProgressIndicator(color = Color.White)
+                    is MyActivityUiState.Success -> Text("Success!", color = Color.Green, fontWeight = FontWeight.Bold)
+                    is MyActivityUiState.Error -> Text(state.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                    is MyActivityUiState.NavigateToChat -> CircularProgressIndicator(color = Color.White)
+                    is MyActivityUiState.Idle -> { /* Show main content */ }
                 }
             }
         }
@@ -307,7 +303,6 @@ private fun formatTimestamp(timestamp: Timestamp?): String {
 @Composable
 fun MyActivityScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        // CORRECTED: Pass dummy parameters to the preview
         MyActivityScreen(myActivityViewModel = viewModel(), onNavigateToChat = { _, _ -> })
     }
 }

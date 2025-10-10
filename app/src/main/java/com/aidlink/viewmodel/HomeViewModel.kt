@@ -9,23 +9,18 @@ import com.aidlink.utils.authStateFlow
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
-sealed class RequestUiState {
-    object Idle : RequestUiState()
-    object Loading : RequestUiState()
-    object Success : RequestUiState()
-    data class Error(val message: String) : RequestUiState()
-}
-
 class HomeViewModel : ViewModel() {
 
     private val tag = "HomeViewModel"
     private val repository = AuthRepository()
+    private var fetchJob: Job? = null // CORRECTED: Added missing property
 
     private val _requests = MutableStateFlow<List<HelpRequest>>(emptyList())
     val requests: StateFlow<List<HelpRequest>> = _requests.asStateFlow()
@@ -40,11 +35,10 @@ class HomeViewModel : ViewModel() {
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     init {
-        // Observe the user's login state
         viewModelScope.launch {
             Firebase.auth.authStateFlow().collect { user ->
                 if (user != null) {
-                    fetchRequests() // Initial fetch on login
+                    fetchRequests() // This call is now correct
                 } else {
                     _requests.value = emptyList()
                 }
@@ -52,19 +46,21 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    // CORRECTED: This is now the single, public function for fetching data
     fun fetchRequests() {
-        val userId = Firebase.auth.currentUser?.uid ?: return // Safety check
+        val userId = Firebase.auth.currentUser?.uid ?: return // Get the user ID safely
 
-        viewModelScope.launch {
+        fetchJob?.cancel()
+        fetchJob = viewModelScope.launch {
             _isRefreshing.value = true
             repository.getRequests()
                 .catch { exception ->
                     Log.e(tag, "Error fetching requests", exception)
-                    _isRefreshing.value = false // Ensure refreshing stops on error
+                    _isRefreshing.value = false
                 }
                 .collect { requestList ->
                     _requests.value = requestList.filter { it.userId != userId }
-                    _isRefreshing.value = false // Mark refreshing as complete
+                    _isRefreshing.value = false
                 }
         }
     }

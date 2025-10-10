@@ -224,30 +224,40 @@ class AuthRepository {
         )
     }
 
+    fun getRequests(): Flow<List<HelpRequest>> {
+        return db.collection("requests")
+            .whereEqualTo("status", "open")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .snapshots()
+            .map { snapshot -> snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } }
+    }
+
     fun getChats(userId: String): Flow<List<Chat>> {
         return db.collection("chats")
             .whereArrayContains("participants", userId)
             .snapshots()
             .map { snapshot ->
                 snapshot.documents.mapNotNull { doc ->
-                    // --- THIS IS THE SAFER WAY TO CAST ---
                     val participants = doc.get("participants")
-                    if (participants is List<*>) { // Check if it's a List of anything
-                        @Suppress("UNCHECKED_CAST") // This is now safe, so we can suppress the warning
+                    if (participants is List<*>) {
+                        @Suppress("UNCHECKED_CAST")
                         val participantIds = participants as List<String>
                         val otherUserId = participantIds.firstOrNull { it != userId } ?: ""
 
+                        // Fetch the other user's actual name
+                        val otherUserName = getUserProfileOnce(otherUserId)?.name ?: "Unknown User"
+
                         Chat(
                             id = doc.id,
-                            userName = "User ${otherUserId.take(4)}",
-                            lastMessage = "...",
+                            userName = otherUserName,
+                            lastMessage = "Tap to chat", // Placeholder
                             timestamp = "",
                             unreadCount = 0,
                             isOnline = false,
                             avatarUrl = ""
                         )
                     } else {
-                        null // If it's not a list, ignore this chat document
+                        null
                     }
                 }
             }
@@ -275,16 +285,6 @@ class AuthRepository {
             false
         }
     }
-
-
-    fun getRequests(): Flow<List<HelpRequest>> {
-        return db.collection("requests")
-            .whereEqualTo("status", "open")
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .snapshots()
-            .map { snapshot -> snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } }
-    }
-
     fun getMyRequests(userId: String): Flow<List<HelpRequest>> {
         return db.collection("requests")
             .whereEqualTo("userId", userId)

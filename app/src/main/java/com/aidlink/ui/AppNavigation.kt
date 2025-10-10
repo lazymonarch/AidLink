@@ -96,7 +96,6 @@ fun AppNavigation() {
                 )
             }
 
-            // --- UPDATED 'activity' ROUTE ---
             composable("activity") {
                 MyActivityScreen(
                     myActivityViewModel = myActivityViewModel,
