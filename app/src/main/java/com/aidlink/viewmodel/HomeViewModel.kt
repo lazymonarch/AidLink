@@ -38,7 +38,7 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             Firebase.auth.authStateFlow().collect { user ->
                 if (user != null) {
-                    fetchRequests() // This call is now correct
+                    fetchRequests()
                 } else {
                     _requests.value = emptyList()
                 }
@@ -46,10 +46,8 @@ class HomeViewModel : ViewModel() {
         }
     }
 
-    // CORRECTED: This is now the single, public function for fetching data
     fun fetchRequests() {
-        val userId = Firebase.auth.currentUser?.uid ?: return // Get the user ID safely
-
+        val userId = Firebase.auth.currentUser?.uid ?: return
         fetchJob?.cancel()
         fetchJob = viewModelScope.launch {
             _isRefreshing.value = true

@@ -1,6 +1,6 @@
 package com.aidlink.viewmodel
 
-// This single, shared sealed class will be used by both ViewModels.
+// This single, shared sealed class will be used by all ViewModels that perform actions.
 sealed class RequestUiState {
     object Idle : RequestUiState()
     object Loading : RequestUiState()

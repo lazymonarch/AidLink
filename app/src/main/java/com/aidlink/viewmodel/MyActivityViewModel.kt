@@ -13,13 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-sealed class MyActivityUiState {
-    object Idle : MyActivityUiState()
-    object Loading : MyActivityUiState()
-    object Success : MyActivityUiState()
-    data class NavigateToChat(val chatId: String, val otherUserName: String) : MyActivityUiState()
-    data class Error(val message: String) : MyActivityUiState()
-}
+
 
 
 class MyActivityViewModel : ViewModel() {
@@ -36,8 +30,8 @@ class MyActivityViewModel : ViewModel() {
     private val _completedRequests = MutableStateFlow<List<HelpRequest>>(emptyList())
     val completedRequests: StateFlow<List<HelpRequest>> = _completedRequests.asStateFlow()
 
-    private val _actionUiState = MutableStateFlow<MyActivityUiState>(MyActivityUiState.Idle)
-    val actionUiState: StateFlow<MyActivityUiState> = _actionUiState.asStateFlow()
+    private val _actionUiState = MutableStateFlow<RequestUiState>(RequestUiState.Idle)
+    val actionUiState: StateFlow<RequestUiState> = _actionUiState.asStateFlow()
 
     init {
         // CORRECTED: This now reliably fetches data on login
@@ -70,28 +64,27 @@ class MyActivityViewModel : ViewModel() {
 
     fun onAcceptOffer(request: HelpRequest) {
         viewModelScope.launch {
-            _actionUiState.value = MyActivityUiState.Loading
+            _actionUiState.value = RequestUiState.Loading
             val requesterId = currentUser?.uid
             val helperId = request.responderId
             val helperName = request.responderName
 
             if (requesterId == null || helperId == null || helperName == null) {
-                _actionUiState.value = MyActivityUiState.Error("User or responder not found.")
+                _actionUiState.value = RequestUiState.Error("User or responder not found.")
                 return@launch
             }
             val success = repository.acceptOffer(request.id, requesterId, helperId)
             if (success) {
-                // Emit the navigation state
-                _actionUiState.value = MyActivityUiState.NavigateToChat(request.id, helperName)
+                _actionUiState.value = RequestUiState.NavigateToChat(request.id, helperName)
             } else {
-                _actionUiState.value = MyActivityUiState.Error("Failed to accept.")
+                _actionUiState.value = RequestUiState.Error("Failed to accept.")
             }
         }
     }
 
     fun onDeclineOffer(requestId: String) {
         viewModelScope.launch {
-            _actionUiState.value = MyActivityUiState.Loading
+            _actionUiState.value = RequestUiState.Loading
             val success = repository.declineOffer(requestId)
             handleActionResult(success, "Failed to decline.")
         }
@@ -99,7 +92,7 @@ class MyActivityViewModel : ViewModel() {
 
     fun onDeleteRequest(requestId: String) {
         viewModelScope.launch {
-            _actionUiState.value = MyActivityUiState.Loading
+            _actionUiState.value = RequestUiState.Loading
             val success = repository.deleteRequest(requestId)
             handleActionResult(success, "Failed to delete.")
         }
@@ -107,7 +100,7 @@ class MyActivityViewModel : ViewModel() {
 
     fun onCancelRequest(requestId: String) {
         viewModelScope.launch {
-            _actionUiState.value = MyActivityUiState.Loading
+            _actionUiState.value = RequestUiState.Loading
             val success = repository.cancelRequest(requestId)
             handleActionResult(success, "Failed to cancel request.")
         }
@@ -115,15 +108,15 @@ class MyActivityViewModel : ViewModel() {
 
     private suspend fun handleActionResult(success: Boolean, errorMessage: String) {
         if (success) {
-            _actionUiState.value = MyActivityUiState.Success
+            _actionUiState.value = RequestUiState.Success
             delay(1500)
             resetActionState()
         } else {
-            _actionUiState.value = MyActivityUiState.Error(errorMessage)
+            _actionUiState.value = RequestUiState.Error(errorMessage)
         }
     }
 
     fun resetActionState() {
-        _actionUiState.value = MyActivityUiState.Idle
+        _actionUiState.value = RequestUiState.Idle
     }
 }
