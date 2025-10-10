@@ -117,12 +117,15 @@ fun MyActivityScreen(
                 if (listToShow.isEmpty()) {
                     EmptyState(message = emptyMessage)
                 } else {
-                    LazyColumn(contentPadding = PaddingValues(16.dp)) {
+                    LazyColumn(
+                        // --- THIS IS THE FIX ---
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp)
+                    ) {
                         items(listToShow) { request ->
                             ActivityItemRow(
                                 request = request,
                                 onClick = {
-                                    // Only open the management dialog for the user's own, non-completed posts
                                     if (request.userId == currentUser?.uid && request.status != "completed") {
                                         requestInDialog = request
                                     }

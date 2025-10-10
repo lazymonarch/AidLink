@@ -4,10 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
 import com.aidlink.model.HelpRequest
-import com.aidlink.utils.authStateFlow // Using your custom extension
+import com.aidlink.utils.authStateFlow
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +29,7 @@ class MyActivityViewModel : ViewModel() {
     val actionUiState: StateFlow<RequestUiState> = _actionUiState.asStateFlow()
 
     init {
-        // CORRECTED: Observe the auth state to fetch data reliably
+        // This now observes the user's login state
         viewModelScope.launch {
             Firebase.auth.authStateFlow().collect { user ->
                 if (user != null) {

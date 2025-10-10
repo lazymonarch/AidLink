@@ -9,7 +9,6 @@ import com.aidlink.utils.authStateFlow
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,7 +26,6 @@ class HomeViewModel : ViewModel() {
 
     private val tag = "HomeViewModel"
     private val repository = AuthRepository()
-    private var fetchJob: Job? = null
 
     private val _requests = MutableStateFlow<List<HelpRequest>>(emptyList())
     val requests: StateFlow<List<HelpRequest>> = _requests.asStateFlow()
@@ -38,26 +36,35 @@ class HomeViewModel : ViewModel() {
     private val _requestUiState = MutableStateFlow<RequestUiState>(RequestUiState.Idle)
     val requestUiState = _requestUiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     init {
+        // Observe the user's login state
         viewModelScope.launch {
             Firebase.auth.authStateFlow().collect { user ->
                 if (user != null) {
-                    fetchRequests(user.uid)
+                    fetchRequests() // Initial fetch on login
                 } else {
                     _requests.value = emptyList()
-                    fetchJob?.cancel()
                 }
             }
         }
     }
 
-    private fun fetchRequests(userId: String) {
-        fetchJob?.cancel()
-        fetchJob = viewModelScope.launch {
+    fun fetchRequests() {
+        val userId = Firebase.auth.currentUser?.uid ?: return // Safety check
+
+        viewModelScope.launch {
+            _isRefreshing.value = true
             repository.getRequests()
-                .catch { exception -> Log.e(tag, "Error fetching requests", exception) }
+                .catch { exception ->
+                    Log.e(tag, "Error fetching requests", exception)
+                    _isRefreshing.value = false // Ensure refreshing stops on error
+                }
                 .collect { requestList ->
                     _requests.value = requestList.filter { it.userId != userId }
+                    _isRefreshing.value = false // Mark refreshing as complete
                 }
         }
     }
