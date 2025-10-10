@@ -28,6 +28,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.model.HelpRequest
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.MyActivityViewModel
+import com.aidlink.viewmodel.MyActivityUiState
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
@@ -70,8 +71,8 @@ fun MyActivityScreen(
     }
 
     LaunchedEffect(actionUiState) {
-        if (actionUiState is RequestUiState.NavigateToChat) {
-            val navState = actionUiState as RequestUiState.NavigateToChat
+        if (actionUiState is MyActivityUiState.NavigateToChat) {
+            val navState = actionUiState as MyActivityUiState.NavigateToChat
             onNavigateToChat(navState.chatId, navState.otherUserName)
             myActivityViewModel.resetActionState()
         }
@@ -138,7 +139,7 @@ fun MyActivityScreen(
 @Composable
 fun RequestManagementDialog(
     request: HelpRequest,
-    actionUiState: RequestUiState, // <-- CORRECTED TYPE
+    actionUiState: MyActivityUiState,
     onDismiss: () -> Unit,
     onAccept: () -> Unit,
     onDecline: () -> Unit,
@@ -182,12 +183,12 @@ fun RequestManagementDialog(
                 }
 
                 // Overlay for loading/success/error states
-                when (val state = actionUiState) {
-                    is RequestUiState.Loading -> CircularProgressIndicator(color = Color.White)
-                    is RequestUiState.Success -> Text("Success!", color = Color.Green, fontWeight = FontWeight.Bold)
-                    is RequestUiState.Error -> Text(state.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
-                    is RequestUiState.NavigateToChat -> CircularProgressIndicator(color = Color.White)
-                    is RequestUiState.Idle -> { /* Show main content */ }
+                when (val state = actionUiState) { // CORRECTED: Use the specific state
+                    is MyActivityUiState.Loading -> CircularProgressIndicator(color = Color.White)
+                    is MyActivityUiState.Success -> Text("Success!", color = Color.Green, fontWeight = FontWeight.Bold)
+                    is MyActivityUiState.Error -> Text(state.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                    is MyActivityUiState.NavigateToChat -> CircularProgressIndicator(color = Color.White)
+                    is MyActivityUiState.Idle -> { /* Show main content */ }
                 }
             }
         }

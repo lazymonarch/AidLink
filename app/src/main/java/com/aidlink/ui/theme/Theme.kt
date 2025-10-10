@@ -1,4 +1,3 @@
-// File: com/aidlink/ui/theme/Theme.kt
 package com.aidlink.ui.theme
 
 import android.app.Activity

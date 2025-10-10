@@ -6,10 +6,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -31,7 +27,7 @@ import com.aidlink.model.RequestType
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.HomeViewModel
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     homeViewModel: HomeViewModel,
@@ -39,12 +35,6 @@ fun HomeScreen(
     onRequestClicked: (String) -> Unit
 ) {
     val requests by homeViewModel.requests.collectAsState()
-    val isRefreshing by homeViewModel.isRefreshing.collectAsState()
-
-    val pullRefreshState = rememberPullRefreshState(
-        refreshing = isRefreshing,
-        onRefresh = { homeViewModel.fetchRequests() } // This call is now correct
-    )
 
     Scaffold(
         containerColor = Color(0xFF121212),
@@ -75,51 +65,34 @@ fun HomeScreen(
         }
     ) { innerPadding ->
 
-        Box(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize() // Make the Box fill the screen
-                .pullRefresh(pullRefreshState) // Apply the modifier here
-        ) {
-            if (requests.isEmpty() && !isRefreshing) {
-                // --- THIS SECTION IS UPDATED ---
-                // Wrap the empty state message in a scrollable column
-                // to ensure the pull gesture can always be detected.
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "No help requests in your area yet.\nPull down to refresh.",
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(32.dp)
+        if (requests.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No help requests in your area yet. Be the first to post one!",
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(requests) { request ->
+                    HelpRequestCard(
+                        request = request,
+                        onClick = { onRequestClicked(request.id) }
                     )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(requests) { request ->
-                        HelpRequestCard(
-                            request = request,
-                            onClick = { onRequestClicked(request.id) }
-                        )
-                    }
-                }
             }
-
-            PullRefreshIndicator(
-                refreshing = isRefreshing,
-                state = pullRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
         }
     }
 }

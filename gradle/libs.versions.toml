@@ -1,5 +1,5 @@
 [versions]
-agp = "8.13.0"  # CORRECTED: This is a real, stable version
+agp = "8.13.0"
 kotlin = "2.0.0"
 composeBom = "2024.02.02"
 coreKtx = "1.13.1"
@@ -10,6 +10,7 @@ lifecycleRuntimeKtx = "2.8.2"
 activityCompose = "1.9.0"
 googleGmsGoogleServices = "4.4.2"
 firebaseBom = "33.1.2"
+material = "1.9.3"
 navigationCompose = "2.7.7"
 lifecycleViewmodelCompose = "2.8.2"
 ui = "1.9.2"
@@ -38,6 +39,7 @@ firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.r
 firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
+firebase-firestore-ktx = { group = "com.google.firebase", name = "firebase-firestore-ktx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

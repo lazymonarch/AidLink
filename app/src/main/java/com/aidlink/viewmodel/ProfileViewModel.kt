@@ -1,5 +1,3 @@
-// File: /app/src/main/java/com/aidlink/viewmodel/ProfileViewModel.kt
-
 package com.aidlink.viewmodel
 
 import androidx.lifecycle.ViewModel

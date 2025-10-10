@@ -16,15 +16,12 @@ import kotlinx.coroutines.launch
 class ChatViewModel : ViewModel() {
 
     private val repository = AuthRepository()
-
     private val _chats = MutableStateFlow<List<Chat>>(emptyList())
     val chats: StateFlow<List<Chat>> = _chats.asStateFlow()
-
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
 
     init {
-        // CORRECTED: This now reliably fetches data on login
         viewModelScope.launch {
             Firebase.auth.authStateFlow().collect { user ->
                 if (user != null) {
@@ -35,7 +32,6 @@ class ChatViewModel : ViewModel() {
             }
         }
     }
-
     private fun fetchChats(userId: String) {
         viewModelScope.launch {
             repository.getChats(userId).collect { chatList ->
@@ -43,7 +39,6 @@ class ChatViewModel : ViewModel() {
             }
         }
     }
-
     fun fetchMessages(chatId: String) {
         viewModelScope.launch {
             repository.getMessages(chatId).collect { messageList ->
@@ -51,7 +46,6 @@ class ChatViewModel : ViewModel() {
             }
         }
     }
-
     fun sendMessage(chatId: String, text: String) {
         val senderId = Firebase.auth.currentUser?.uid
         if (senderId == null || text.isBlank()) {
