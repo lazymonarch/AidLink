@@ -135,10 +135,25 @@ class AuthRepository {
         return try {
             val requestDocRef = db.collection("requests").document(requestId)
             val chatDocRef = db.collection("chats").document(requestId)
+
+            val requesterProfile = getUserProfileOnce(requesterId)
+            val helperProfile = getUserProfileOnce(helperId)
+
+            if (requesterProfile == null || helperProfile == null) {
+                Log.e(tag, "Could not fetch profiles for chat creation.")
+                return false
+            }
+
             val chatData = mapOf(
                 "participants" to listOf(requesterId, helperId),
+                "participantInfo" to mapOf(
+                    requesterId to mapOf("name" to requesterProfile.name),
+                    helperId to mapOf("name" to helperProfile.name)
+                ),
+                "requestId" to requestId,
                 "createdAt" to com.google.firebase.Timestamp.now()
             )
+
             db.runBatch { batch ->
                 batch.update(requestDocRef, "status", "in_progress")
                 batch.set(chatDocRef, chatData)
@@ -238,30 +253,12 @@ class AuthRepository {
             .snapshots()
             .map { snapshot ->
                 snapshot.documents.mapNotNull { doc ->
-                    val participants = doc.get("participants")
-                    if (participants is List<*>) {
-                        @Suppress("UNCHECKED_CAST")
-                        val participantIds = participants as List<String>
-                        val otherUserId = participantIds.firstOrNull { it != userId } ?: ""
-
-                        // Fetch the other user's actual name
-                        val otherUserName = getUserProfileOnce(otherUserId)?.name ?: "Unknown User"
-
-                        Chat(
-                            id = doc.id,
-                            userName = otherUserName,
-                            lastMessage = "Tap to chat", // Placeholder
-                            timestamp = "",
-                            unreadCount = 0,
-                            isOnline = false,
-                            avatarUrl = ""
-                        )
-                    } else {
-                        null
-                    }
+                    // Use the safe toObject method with our updated data class
+                    doc.toObject(Chat::class.java)?.copy(id = doc.id)
                 }
             }
     }
+
 
     fun getMessages(chatId: String): Flow<List<Message>> {
         return db.collection("chats").document(chatId)

@@ -1,6 +1,8 @@
 package com.aidlink.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +12,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,18 +23,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.model.Chat
 import com.aidlink.ui.theme.AidLinkTheme
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.viewmodel.ChatViewModel
-
-// You'll need to add some placeholder avatar drawables to your res/drawable folder
-// For example, create R.drawable.avatar_1, R.drawable.avatar_2, etc.
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +39,7 @@ fun ChatsListScreen(
     onChatClicked: (chatId: String, userName: String) -> Unit
 ) {
     val chats by chatViewModel.chats.collectAsState()
+    val currentUser = Firebase.auth.currentUser
 
     Scaffold(
         containerColor = Color.Black,
@@ -69,10 +70,14 @@ fun ChatsListScreen(
             contentPadding = PaddingValues(horizontal = 16.dp)
         ) {
             items(chats) { chat ->
-                Box(modifier = Modifier.clickable { onChatClicked(chat.id, chat.userName) }) {
-                    ChatItemRow(chat = chat)
+                // Determine the other user's name from the participantInfo map
+                val otherUserId = chat.participants.firstOrNull { it != currentUser?.uid } ?: ""
+                val otherUserName = chat.participantInfo[otherUserId]?.get("name") ?: "Unknown User"
+
+                Column(modifier = Modifier.clickable { onChatClicked(chat.id, otherUserName) }) {
+                    ChatItemRow(chat = chat, otherUserName = otherUserName)
+                    HorizontalDivider(color = Color.DarkGray)
                 }
-                HorizontalDivider(Modifier, DividerDefaults.Thickness, color = Color.DarkGray)
             }
         }
     }
@@ -80,7 +85,7 @@ fun ChatsListScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatItemRow(chat: Chat) {
+fun ChatItemRow(chat: Chat, otherUserName: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -88,27 +93,18 @@ fun ChatItemRow(chat: Chat) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box {
-            // In a real app, you would use an image loading library like Coil
-            // For now, we use a placeholder color
-            Box(modifier = Modifier
-                .size(50.dp)
-                .clip(CircleShape)
-                .background(Color.Gray)
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(CircleShape)
+                    .background(Color.Gray)
             )
-            if (chat.isOnline) {
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(Color.Green)
-                        .border(1.dp, Color.Black, CircleShape)
-                        .align(Alignment.BottomEnd)
-                )
-            }
+            // 'isOnline' is not in our model, so this is commented out for now
+            /* if (chat.isOnline) { ... } */
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = chat.userName, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(text = otherUserName, color = Color.White, fontWeight = FontWeight.Bold)
             Text(
                 text = chat.lastMessage,
                 color = Color.Gray,
@@ -118,7 +114,10 @@ fun ChatItemRow(chat: Chat) {
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
-            Text(text = chat.timestamp, color = Color.Gray, fontSize = 12.sp)
+            val formattedTimestamp = chat.lastMessageTimestamp?.toDate()?.let {
+                SimpleDateFormat("hh:mm a", Locale.getDefault()).format(it)
+            } ?: ""
+            Text(text = formattedTimestamp, color = Color.Gray, fontSize = 12.sp)
             if (chat.unreadCount > 0) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Badge(
@@ -135,7 +134,6 @@ fun ChatItemRow(chat: Chat) {
 @Composable
 fun ChatsListScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        // CORRECTED: Pass dummy parameters to the preview
         ChatsListScreen(chatViewModel = viewModel(), onChatClicked = { _, _ -> })
     }
 }

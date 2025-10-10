@@ -21,11 +21,10 @@ sealed class MyActivityUiState {
     data class Error(val message: String) : MyActivityUiState()
 }
 
+
 class MyActivityViewModel : ViewModel() {
 
     private val repository = AuthRepository()
-
-    // --- ADDED: The currentUser property that was missing ---
     private val currentUser = Firebase.auth.currentUser
 
     private val _myRequests = MutableStateFlow<List<HelpRequest>>(emptyList())
@@ -72,7 +71,7 @@ class MyActivityViewModel : ViewModel() {
     fun onAcceptOffer(request: HelpRequest) {
         viewModelScope.launch {
             _actionUiState.value = MyActivityUiState.Loading
-            val requesterId = Firebase.auth.currentUser?.uid
+            val requesterId = currentUser?.uid
             val helperId = request.responderId
             val helperName = request.responderName
 
@@ -82,6 +81,7 @@ class MyActivityViewModel : ViewModel() {
             }
             val success = repository.acceptOffer(request.id, requesterId, helperId)
             if (success) {
+                // Emit the navigation state
                 _actionUiState.value = MyActivityUiState.NavigateToChat(request.id, helperName)
             } else {
                 _actionUiState.value = MyActivityUiState.Error("Failed to accept.")
