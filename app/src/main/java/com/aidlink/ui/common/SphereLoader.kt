@@ -24,7 +24,6 @@ fun SphereLoader(
     val infiniteTransition = rememberInfiniteTransition(label = "sphere_loader_transition")
 
     // A single clockwise rotation for the entire sphere.
-    // A positive targetValue (360f) ensures clockwise rotation.
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
@@ -48,7 +47,6 @@ fun SphereLoader(
         contentAlignment = Alignment.Center
     ) {
         // The Canvas elements now just draw the static shapes of the sphere.
-        // The parent Box handles all the animation.
 
         // Orbit 1 (Tilted 45 degrees)
         Canvas(

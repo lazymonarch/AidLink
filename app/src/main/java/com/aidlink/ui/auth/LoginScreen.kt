@@ -42,7 +42,6 @@ fun LoginScreen(
         }
     }
 
-    // Wrap the entire screen in a Box to allow overlaying the loader
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -55,7 +54,6 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // --- THIS IS THE UPDATED LOGO ---
             Image(
                 painter = painterResource(id = R.drawable.aidlink_logo1),
                 contentDescription = "AidLink Logo",
@@ -99,15 +97,14 @@ fun LoginScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- THIS IS THE FIX ---
-            // This Box ensures the space is always occupied, even if the button is hidden.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                // Only show the button if the state is NOT loading.
-                if (uiState !is AuthUiState.Loading) {
+                // --- THIS IS THE FIX ---
+                // Show the button ONLY when the state is Idle or an Error has occurred.
+                if (uiState is AuthUiState.Idle || uiState is AuthUiState.Error) {
                     Button(
                         onClick = { authViewModel.sendOtp("+91$phoneNumber", activity) },
                         modifier = Modifier.fillMaxSize(),
@@ -123,6 +120,8 @@ fun LoginScreen(
                 }
             }
         }
+
+        // Show the loader only when the state is specifically 'Loading'.
         if (uiState is AuthUiState.Loading) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
             Box(
@@ -131,7 +130,7 @@ fun LoginScreen(
                     .padding(bottom = 60.dp),
                 contentAlignment = Alignment.BottomCenter
             ) {
-                SphereLoader() // <-- Use your new, correct loader
+                SphereLoader()
             }
         }
     }

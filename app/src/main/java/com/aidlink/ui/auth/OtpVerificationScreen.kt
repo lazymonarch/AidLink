@@ -129,9 +129,14 @@ fun OtpVerificationScreen(
                             color = MaterialTheme.colorScheme.error,
                             textAlign = TextAlign.Center
                         )
-                    } else if (uiState !is AuthUiState.Loading) {
-                        // --- THIS IS THE FIX ---
-                        // Only show the button if the state is NOT loading.
+                    }
+
+                    // --- THIS IS THE FINAL, CORRECTED LOGIC ---
+                    // The button now shows for any state that isn't Loading or a Success state.
+                    if (uiState !is AuthUiState.Loading &&
+                        uiState !is AuthUiState.AuthSuccessExistingUser &&
+                        uiState !is AuthUiState.AuthSuccessNewUser
+                    ) {
                         Button(
                             onClick = { authViewModel.verifyOtp(verificationId, otpValue) },
                             modifier = Modifier
@@ -159,7 +164,7 @@ fun OtpVerificationScreen(
                     .padding(bottom = 60.dp),
                 contentAlignment = Alignment.BottomCenter
             ) {
-                SphereLoader() // <-- Use your new, correct loader
+                SphereLoader()
             }
         }
     }
@@ -173,7 +178,7 @@ private fun OtpInputField(
     onOtpTextChange: (String, Boolean) -> Unit
 ) {
     BasicTextField(
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         value = otpText,
         onValueChange = {
             if (it.length <= otpCount) {

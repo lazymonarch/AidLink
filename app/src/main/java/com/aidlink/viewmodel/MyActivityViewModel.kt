@@ -4,15 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
 import com.aidlink.model.HelpRequest
+import com.aidlink.model.Message
+import com.aidlink.model.Review
 import com.aidlink.utils.authStateFlow
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import com.aidlink.model.Message
 
 sealed class MyActivityUiState {
     object Idle : MyActivityUiState()
@@ -36,12 +35,32 @@ class MyActivityViewModel : ViewModel() {
     private val _actionUiState = MutableStateFlow<MyActivityUiState>(MyActivityUiState.Idle)
     val actionUiState: StateFlow<MyActivityUiState> = _actionUiState.asStateFlow()
 
+    private val _requestToReview = MutableStateFlow<HelpRequest?>(null)
+    val requestToReview: StateFlow<HelpRequest?> = _requestToReview.asStateFlow()
+
     init {
         viewModelScope.launch {
+            // Listen for user authentication state changes
             Firebase.auth.authStateFlow().collect { user ->
                 if (user != null) {
-                    fetchData(user.uid)
+                    // --- THIS IS THE CORRECTED DATA FETCHING LOGIC ---
+                    // Combine the two flows into a single, unified stream
+                    repository.getMyRequests(user.uid).combine(repository.getMyResponses(user.uid)) { myRequests, myResponses ->
+                        // Filter for the "My Requests" tab (active items)
+                        _myRequests.value = myRequests.filter { it.status != "completed" }
+
+                        // Filter for the "My Responses" tab (active items)
+                        _myResponses.value = myResponses.filter { it.status != "completed" }
+
+                        // Filter and combine for the "Completed" tab
+                        val completedFromMyRequests = myRequests.filter { it.status == "completed" }
+                        val completedFromMyResponses = myResponses.filter { it.status == "completed" }
+                        _completedRequests.value = (completedFromMyRequests + completedFromMyResponses)
+                            .distinctBy { it.id } // Ensure no duplicates
+                            .sortedByDescending { it.createdAt } // Sort the final list
+                    }.collect() // Start collecting the combined flow
                 } else {
+                    // Clear all lists if the user logs out
                     _myRequests.value = emptyList()
                     _myResponses.value = emptyList()
                     _completedRequests.value = emptyList()
@@ -50,19 +69,7 @@ class MyActivityViewModel : ViewModel() {
         }
     }
 
-    private fun fetchData(userId: String) {
-        viewModelScope.launch {
-            repository.getMyRequests(userId).collect { requests ->
-                _myRequests.value = requests.filter { it.status != "completed" }
-                _completedRequests.value = requests.filter { it.status == "completed" }
-            }
-        }
-        viewModelScope.launch {
-            repository.getMyResponses(userId).collect { responses ->
-                _myResponses.value = responses
-            }
-        }
-    }
+    // The fetchData function is no longer needed as logic is moved to the init block.
 
     fun onAcceptOffer(request: HelpRequest) {
         viewModelScope.launch {
@@ -108,16 +115,6 @@ class MyActivityViewModel : ViewModel() {
         }
     }
 
-    private suspend fun handleActionResult(success: Boolean, errorMessage: String) {
-        if (success) {
-            _actionUiState.value = MyActivityUiState.Success
-            delay(1500)
-            resetActionState()
-        } else {
-            _actionUiState.value = MyActivityUiState.Error(errorMessage)
-        }
-    }
-
     fun onConfirmCompletion(request: HelpRequest) {
         viewModelScope.launch {
             _actionUiState.value = MyActivityUiState.Loading
@@ -126,7 +123,51 @@ class MyActivityViewModel : ViewModel() {
                 text = "The request has been confirmed as complete."
             )
             val success = repository.completeRequest(request.id, systemMessage)
-            handleActionResult(success, "Failed to confirm completion.")
+            if (success) {
+                _actionUiState.value = MyActivityUiState.Success
+                delay(1500) // Wait for success message to show
+                _actionUiState.value = MyActivityUiState.Idle
+                _requestToReview.value = request // This will trigger the dialog
+            } else {
+                _actionUiState.value = MyActivityUiState.Error("Failed to confirm completion.")
+            }
+        }
+    }
+
+    fun submitReview(rating: Int, comment: String) {
+        viewModelScope.launch {
+            val request = _requestToReview.value
+            val currentUser = repository.getCurrentUser()
+            val userProfile = currentUser?.uid?.let { repository.getUserProfileOnce(it) }
+
+            if (request?.responderId == null || currentUser == null || userProfile == null) {
+                _requestToReview.value = null // Close dialog
+                return@launch
+            }
+
+            val review = Review(
+                reviewerId = currentUser.uid,
+                reviewerName = userProfile.name,
+                rating = rating,
+                comment = comment
+            )
+
+            repository.submitReview(request.responderId, review)
+            _requestToReview.value = null // Close the dialog
+        }
+    }
+
+    fun dismissReviewDialog() {
+        _requestToReview.value = null
+    }
+
+    private suspend fun handleActionResult(success: Boolean, errorMessage: String) {
+        if (success) {
+            _actionUiState.value = MyActivityUiState.Success
+            delay(1500)
+            resetActionState()
+        } else {
+            _actionUiState.value = MyActivityUiState.Error(errorMessage)
         }
     }
 

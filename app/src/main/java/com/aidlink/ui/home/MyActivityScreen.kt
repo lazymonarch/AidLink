@@ -10,9 +10,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,7 +32,6 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
-import com.aidlink.viewmodel.RequestUiState
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -55,7 +52,21 @@ fun MyActivityScreen(
     var requestInDialog by remember { mutableStateOf<HelpRequest?>(null) }
     val actionUiState by myActivityViewModel.actionUiState.collectAsState()
 
-    // --- The Floating Card Dialog Logic ---
+    // --- NEW: State for the review dialog ---
+    val requestToReview by myActivityViewModel.requestToReview.collectAsState()
+
+    // Show the review dialog when the state is not null
+    if (requestToReview != null) {
+        ReviewDialog(
+            helperName = requestToReview?.responderName ?: "the helper",
+            onDismiss = { myActivityViewModel.dismissReviewDialog() },
+            onSubmit = { rating, comment ->
+                myActivityViewModel.submitReview(rating, comment)
+            }
+        )
+    }
+    // --- END NEW ---
+
     if (requestInDialog != null) {
         RequestManagementDialog(
             request = requestInDialog!!,
@@ -67,7 +78,8 @@ fun MyActivityScreen(
             onAccept = { myActivityViewModel.onAcceptOffer(requestInDialog!!) },
             onDecline = { myActivityViewModel.onDeclineOffer(requestInDialog!!.id) },
             onDelete = { myActivityViewModel.onDeleteRequest(requestInDialog!!.id) },
-            onCancel = { myActivityViewModel.onCancelRequest(requestInDialog!!.id) }
+            onCancel = { myActivityViewModel.onCancelRequest(requestInDialog!!.id) },
+            onConfirm = { myActivityViewModel.onConfirmCompletion(requestInDialog!!) }
         )
     }
 
@@ -76,11 +88,11 @@ fun MyActivityScreen(
             is MyActivityUiState.NavigateToChat -> {
                 onNavigateToChat(state.chatId, state.otherUserName)
                 myActivityViewModel.resetActionState()
-                requestInDialog = null // Close dialog after navigating
+                requestInDialog = null
             }
             is MyActivityUiState.Success -> {
-                delay(1500) // Wait for the "Success!" message to be visible
-                requestInDialog = null // This closes the dialog
+                delay(1500)
+                requestInDialog = null
                 myActivityViewModel.resetActionState()
             }
             else -> { /* Do nothing for other states */ }
@@ -131,7 +143,6 @@ fun MyActivityScreen(
                             ActivityItemRow(
                                 request = request,
                                 onClick = {
-                                    // Only open the management dialog for the user's own, non-completed posts
                                     if (request.userId == currentUser?.uid && request.status != "completed") {
                                         requestInDialog = request
                                     }
@@ -145,6 +156,97 @@ fun MyActivityScreen(
     }
 }
 
+// --- NEW: The Review Dialog Composable ---
+@Composable
+fun ReviewDialog(
+    helperName: String,
+    onDismiss: () -> Unit,
+    onSubmit: (rating: Int, comment: String) -> Unit
+) {
+    var rating by remember { mutableIntStateOf(0) }
+    var comment by remember { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2C2E))
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "How was your experience with $helperName?",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                StarRatingBar(
+                    rating = rating,
+                    onRatingChanged = { newRating -> rating = newRating }
+                )
+
+                OutlinedTextField(
+                    value = comment,
+                    onValueChange = { comment = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    placeholder = { Text("Add a comment (optional)") },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedContainerColor = Color(0xFF1C1C1E),
+                        unfocusedContainerColor = Color(0xFF1C1C1E),
+                        cursorColor = Color.White,
+                        focusedBorderColor = Color.White,
+                        unfocusedBorderColor = Color.DarkGray,
+                    )
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                        Text("Skip")
+                    }
+                    Button(
+                        onClick = { onSubmit(rating, comment) },
+                        modifier = Modifier.weight(1f),
+                        enabled = rating > 0
+                    ) {
+                        Text("Submit")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StarRatingBar(
+    modifier: Modifier = Modifier,
+    rating: Int,
+    onRatingChanged: (Int) -> Unit
+) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.Center) {
+        for (i in 1..5) {
+            Icon(
+                imageVector = if (i <= rating) Icons.Filled.Star else Icons.Filled.StarOutline,
+                contentDescription = "Star $i",
+                tint = if (i <= rating) Color(0xFFFFC107) else Color.Gray,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clickable { onRatingChanged(i) }
+                    .padding(4.dp)
+            )
+        }
+    }
+}
+// --- END NEW ---
+
 @Composable
 fun RequestManagementDialog(
     request: HelpRequest,
@@ -153,7 +255,8 @@ fun RequestManagementDialog(
     onAccept: () -> Unit,
     onDecline: () -> Unit,
     onDelete: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -166,14 +269,12 @@ fun RequestManagementDialog(
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // The 'when' block now controls the entire content to prevent overlap
                 when (val state = actionUiState) {
                     is MyActivityUiState.Loading -> CircularProgressIndicator(color = Color.White)
                     is MyActivityUiState.Success -> Text("Success!", color = Color.Green, fontWeight = FontWeight.Bold)
                     is MyActivityUiState.NavigateToChat -> CircularProgressIndicator(color = Color.White)
                     is MyActivityUiState.Error -> Text(state.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                     is MyActivityUiState.Idle -> {
-                        // The main content with buttons is now ONLY shown in the Idle state
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -184,6 +285,7 @@ fun RequestManagementDialog(
                                     "open" -> "Manage Your Request"
                                     "pending" -> "Offer from: ${request.responderName}"
                                     "in_progress" -> "Request in Progress"
+                                    "pending_approval" -> "Confirm Completion"
                                     else -> "Request Details"
                                 },
                                 color = Color.White,
@@ -196,6 +298,7 @@ fun RequestManagementDialog(
                                 "open" -> OpenRequestActions(onDelete = onDelete)
                                 "pending" -> PendingRequestActions(onAccept = onAccept, onDecline = onDecline)
                                 "in_progress" -> InProgressRequestActions(onCancel = onCancel)
+                                "pending_approval" -> PendingApprovalActions(onConfirm = onConfirm)
                             }
                         }
                     }
@@ -204,7 +307,6 @@ fun RequestManagementDialog(
         }
     }
 }
-
 @Composable
 fun OpenRequestActions(onDelete: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -236,6 +338,24 @@ fun InProgressRequestActions(onCancel: () -> Unit) {
         colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f))
     ) {
         Text("Cancel Request")
+    }
+}
+
+@Composable
+fun PendingApprovalActions(onConfirm: () -> Unit) {
+    Text(
+        text = "The helper has marked this job as complete. Please confirm to close the request.",
+        color = Color.LightGray,
+        textAlign = TextAlign.Center
+    )
+    Button(
+        onClick = onConfirm,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Green)
+    ) {
+        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("Confirm Completion", color = Color.Black, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -293,6 +413,8 @@ private fun getStatusColor(status: String): Color {
     return when (status.lowercase()) {
         "completed" -> Color.Green
         "pending" -> Color.Yellow
+        "pending_approval" -> Color(0xFFFFA500) // Orange
+        "in_progress" -> Color(0xFF4DABF7) // Blue
         "open" -> Color.Gray
         else -> Color.LightGray
     }

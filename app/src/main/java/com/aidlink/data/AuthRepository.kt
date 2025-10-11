@@ -7,6 +7,7 @@ import com.aidlink.model.ChatWithStatus
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.Message
 import com.aidlink.model.RequestType
+import com.aidlink.model.Review
 import com.aidlink.model.UserProfile
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
@@ -336,15 +337,9 @@ class AuthRepository {
         return try {
             val chatDocRef = db.collection("chats").document(chatId)
             val messagesCollectionRef = chatDocRef.collection("messages")
-
-            // Use a transaction to ensure both operations succeed or fail together.
             db.runTransaction { transaction ->
-                // 1. Add the new message to the 'messages' subcollection.
                 transaction.set(messagesCollectionRef.document(), message)
-
-                // 2. Update the last message fields on the parent 'chat' document.
                 transaction.update(chatDocRef, "lastMessage", message.text)
-                // --- THIS IS THE FIX ---
                 transaction.update(chatDocRef, "lastMessageTimestamp", message.timestamp)
             }.await()
             true
@@ -366,6 +361,20 @@ class AuthRepository {
             true
         } catch (e: Exception) {
             Log.e(tag, "Error deleting chats", e)
+            false
+        }
+    }
+
+    suspend fun submitReview(helperId: String, review: Review): Boolean {
+        return try {
+            db.collection("users").document(helperId)
+                .collection("reviews")
+                .add(review)
+                .await()
+            Log.d(tag, "Review submitted successfully for user $helperId")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error submitting review", e)
             false
         }
     }
@@ -402,6 +411,21 @@ class AuthRepository {
         return db.collection("users").document(userId)
             .snapshots()
             .map { snapshot -> snapshot.toObject(UserProfile::class.java) }
+    }
+
+    fun getUserHelpsCount(userId: String): Flow<Int> {
+        return db.collection("requests")
+            .whereEqualTo("responderId", userId)
+            .whereEqualTo("status", "completed")
+            .snapshots()
+            .map { snapshot -> snapshot.size() }
+    }
+
+    fun getUserRequestsCount(userId: String): Flow<Int> {
+        return db.collection("requests")
+            .whereEqualTo("userId", userId)
+            .snapshots()
+            .map { snapshot -> snapshot.size() }
     }
 
     fun logout() {

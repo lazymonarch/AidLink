@@ -31,6 +31,8 @@ import com.aidlink.model.UserProfile
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.ProfileViewModel
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import com.google.firebase.Timestamp
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,9 +40,13 @@ fun ProfileScreen(
     profileViewModel: ProfileViewModel
 ) {
     val userProfile by profileViewModel.userProfile.collectAsState()
+    val helpsCount by profileViewModel.helpsCount.collectAsState()
+    val requestsCount by profileViewModel.requestsCount.collectAsState()
+
+    // This remains static for now, updated to use the correct Review model
     val reviews = listOf(
-        Review("Sophia Bennett", "2 weeks ago", 5, "Ethan was incredibly helpful with my garden! He was punctual, efficient, and did a fantastic job. Highly recommend!"),
-        Review("Liam Harper", "1 month ago", 4, "Ethan helped me with some minor home repairs. He was friendly and got the job done quickly. Would use his services again.")
+        Review(reviewerId = "1", reviewerName = "Sophia Bennett", rating = 5, comment = "Ethan was incredibly helpful with my garden! He was punctual, efficient, and did a fantastic job. Highly recommend!"),
+        Review(reviewerId = "2", reviewerName = "Liam Harper", rating = 4, comment = "Ethan helped me with some minor home repairs. He was friendly and got the job done quickly. Would use his services again.")
     )
 
     Scaffold(
@@ -70,7 +76,7 @@ fun ProfileScreen(
                 }
             } else {
                 item { UserInfoSection(userProfile = userProfile!!) }
-                item { StatsSection(helps = 25, requests = 12, rating = 4.8) }
+                item { StatsSection(helps = helpsCount, requests = requestsCount, rating = 4.8) }
                 item {
                     Text(
                         text = "Reviews",
@@ -87,18 +93,18 @@ fun ProfileScreen(
                 }
                 item {
                     Column(modifier = Modifier.padding(top = 24.dp)) {
-                        HorizontalDivider(color = Color.DarkGray) // CORRECTED
+                        HorizontalDivider(color = Color.DarkGray)
                         ActionItem(icon = Icons.Default.Settings, text = "Settings", onClick = { /* TODO */ })
-                        HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(horizontal = 16.dp)) // CORRECTED
+                        HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(horizontal = 16.dp))
                         ActionItem(icon = Icons.AutoMirrored.Filled.HelpOutline, text = "Help & Support", onClick = { /* TODO */ })
-                        HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(horizontal = 16.dp)) // CORRECTED
+                        HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(horizontal = 16.dp))
                         ActionItem(
                             icon = Icons.AutoMirrored.Filled.ExitToApp,
                             text = "Log Out",
                             color = Color.Red,
                             onClick = { profileViewModel.onLogoutClicked() }
                         )
-                        HorizontalDivider(color = Color.DarkGray) // CORRECTED
+                        HorizontalDivider(color = Color.DarkGray)
                     }
                 }
             }
@@ -160,7 +166,7 @@ private fun UserInfoSection(userProfile: UserProfile) {
 @Composable
 private fun StatsSection(helps: Int, requests: Int, rating: Double) {
     Column(Modifier.padding(top = 24.dp)) {
-        HorizontalDivider(color = Color.DarkGray) // CORRECTED
+        HorizontalDivider(color = Color.DarkGray)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -171,7 +177,7 @@ private fun StatsSection(helps: Int, requests: Int, rating: Double) {
             StatItem(value = requests.toString(), label = "Requests")
             StatItem(value = rating.toString(), label = "Rating", hasStar = true)
         }
-        HorizontalDivider(color = Color.DarkGray) // CORRECTED
+        HorizontalDivider(color = Color.DarkGray)
     }
 }
 
@@ -189,6 +195,7 @@ private fun StatItem(value: String, label: String, hasStar: Boolean = false) {
     }
 }
 
+// --- THIS IS THE CORRECTED REVIEW CARD ---
 @Composable
 private fun ReviewCard(review: Review, modifier: Modifier = Modifier) {
     Card(
@@ -201,8 +208,8 @@ private fun ReviewCard(review: Review, modifier: Modifier = Modifier) {
                 Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.DarkGray))
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = review.name, color = Color.White, fontWeight = FontWeight.Bold)
-                    Text(text = review.time, color = Color.Gray, fontSize = 12.sp)
+                    Text(text = review.reviewerName, color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(text = formatReviewTimestamp(review.createdAt), color = Color.Gray, fontSize = 12.sp)
                 }
                 Row {
                     repeat(5) { index ->
@@ -220,6 +227,7 @@ private fun ReviewCard(review: Review, modifier: Modifier = Modifier) {
         }
     }
 }
+// --- END CORRECTION ---
 
 @Composable
 private fun ActionItem(icon: ImageVector, text: String, color: Color = Color.White, onClick: () -> Unit) {
@@ -235,6 +243,22 @@ private fun ActionItem(icon: ImageVector, text: String, color: Color = Color.Whi
         Text(text = text, color = color, modifier = Modifier.weight(1f))
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Color.Gray)
     }
+}
+
+// --- NEW HELPER FUNCTION TO FORMAT TIME ---
+private fun formatReviewTimestamp(timestamp: Timestamp?): String {
+    if (timestamp == null) return "Just now" // Fallback for preview or fresh reviews
+    val diff = Timestamp.now().seconds - timestamp.seconds
+    val days = TimeUnit.SECONDS.toDays(diff)
+    if (days > 365) return "${days / 365}y ago"
+    if (days > 30) return "${days / 30}m ago"
+    if (days > 7) return "${days / 7}w ago"
+    if (days > 0) return "${days}d ago"
+    val hours = TimeUnit.SECONDS.toHours(diff)
+    if (hours > 0) return "${hours}h ago"
+    val minutes = TimeUnit.SECONDS.toMinutes(diff)
+    if (minutes > 0) return "${minutes}min ago"
+    return "Just now"
 }
 
 @Preview(showBackground = true)
