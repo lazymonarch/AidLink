@@ -19,7 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aidlink.ui.common.ThreeDOrbitLoader // <-- Import your loader
+import com.aidlink.ui.common.SphereLoader
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.AuthUiState
 import com.aidlink.viewmodel.AuthViewModel
@@ -151,7 +151,6 @@ fun OtpVerificationScreen(
             }
         }
 
-        // Show the overlay and loader only when the state is Loading
         if (uiState is AuthUiState.Loading) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
             Box(
@@ -160,7 +159,7 @@ fun OtpVerificationScreen(
                     .padding(bottom = 60.dp),
                 contentAlignment = Alignment.BottomCenter
             ) {
-                ThreeDOrbitLoader()
+                SphereLoader() // <-- Use your new, correct loader
             }
         }
     }

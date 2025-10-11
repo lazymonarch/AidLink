@@ -21,11 +21,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aidlink.R
-import com.aidlink.ui.common.ThreeDOrbitLoader
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.AuthUiState
 import com.aidlink.viewmodel.AuthViewModel
 import com.aidlink.ui.theme.Montserrat
+import com.aidlink.ui.common.SphereLoader
 
 @Composable
 fun LoginScreen(
@@ -123,20 +123,15 @@ fun LoginScreen(
                 }
             }
         }
-
-        // Show the overlay and loader only when the state is Loading
         if (uiState is AuthUiState.Loading) {
-            // Semi-transparent overlay for visual polish
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
-
-            // Your custom loader, positioned in the bottom half of the screen
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = 60.dp),
                 contentAlignment = Alignment.BottomCenter
             ) {
-                ThreeDOrbitLoader()
+                SphereLoader() // <-- Use your new, correct loader
             }
         }
     }
