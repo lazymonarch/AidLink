@@ -1,5 +1,6 @@
 package com.aidlink.ui.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aidlink.ui.common.ThreeDOrbitLoader // <-- Import your loader
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.AuthUiState
 import com.aidlink.viewmodel.AuthViewModel
@@ -36,91 +38,100 @@ fun OtpVerificationScreen(
 
     LaunchedEffect(key1 = uiState) {
         when (uiState) {
-            is AuthUiState.AuthSuccessExistingUser -> onNavigateToHome()
-            is AuthUiState.AuthSuccessNewUser -> onNavigateToProfileSetup()
+            is AuthUiState.AuthSuccessExistingUser -> {
+                onNavigateToHome()
+                authViewModel.resetState()
+            }
+            is AuthUiState.AuthSuccessNewUser -> {
+                onNavigateToProfileSetup()
+                authViewModel.resetState()
+            }
             else -> { /* Do nothing */ }
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { },
-                navigationIcon = {
-                    IconButton(onClick = onBackClicked) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    navigationIconContentColor = Color.White
-                )
-            )
-        },
-        containerColor = Color.Black
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 24.dp)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(modifier = Modifier.height(32.dp))
-                Text(
-                    text = "Enter verification code",
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "We've sent a 6-digit code to your phone.",
-                    color = Color.Gray,
-                    fontSize = 16.sp
-                )
-                Spacer(modifier = Modifier.height(48.dp))
-
-                OtpInputField(
-                    otpText = otpValue,
-                    onOtpTextChange = { value, _ ->
-                        if (value.length <= 6) { otpValue = value }
-                    }
-                )
-                Spacer(modifier = Modifier.height(32.dp))
-
-                Row {
-                    Text("Didn't receive a code? ", color = Color.Gray)
-                    Text(
-                        text = "Resend",
-                        color = Color(0xFFE57373),
-                        fontWeight = FontWeight.Bold
+    // Wrap the screen in a Box to allow overlaying the loader
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { },
+                    navigationIcon = {
+                        IconButton(onClick = onBackClicked) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent, // Make TopAppBar transparent
+                        navigationIconContentColor = Color.White
                     )
-                }
-            }
-
+                )
+            },
+            containerColor = Color.Transparent // Make Scaffold transparent
+        ) { innerPadding ->
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 24.dp)
             ) {
-                when (uiState) {
-                    is AuthUiState.Loading -> {
-                        CircularProgressIndicator(color = Color.White)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(modifier = Modifier.height(32.dp))
+                    Text(
+                        text = "Enter verification code",
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "We've sent a 6-digit code to your phone.",
+                        color = Color.Gray,
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(48.dp))
+
+                    OtpInputField(
+                        otpText = otpValue,
+                        onOtpTextChange = { value, _ ->
+                            if (value.length <= 6) { otpValue = value }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    Row {
+                        Text("Didn't receive a code? ", color = Color.Gray)
+                        Text(
+                            text = "Resend",
+                            color = Color(0xFFE57373),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                    is AuthUiState.Error -> {
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (uiState is AuthUiState.Error) {
                         Text(
                             text = (uiState as AuthUiState.Error).message,
                             color = MaterialTheme.colorScheme.error,
                             textAlign = TextAlign.Center
                         )
-                    }
-                    else -> {
+                    } else if (uiState !is AuthUiState.Loading) {
+                        // --- THIS IS THE FIX ---
+                        // Only show the button if the state is NOT loading.
                         Button(
                             onClick = { authViewModel.verifyOtp(verificationId, otpValue) },
                             modifier = Modifier
@@ -137,6 +148,19 @@ fun OtpVerificationScreen(
                         }
                     }
                 }
+            }
+        }
+
+        // Show the overlay and loader only when the state is Loading
+        if (uiState is AuthUiState.Loading) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 60.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                ThreeDOrbitLoader()
             }
         }
     }
