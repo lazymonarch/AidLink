@@ -35,6 +35,7 @@ import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import com.aidlink.viewmodel.RequestUiState
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -71,10 +72,18 @@ fun MyActivityScreen(
     }
 
     LaunchedEffect(actionUiState) {
-        if (actionUiState is MyActivityUiState.NavigateToChat) {
-            val navState = actionUiState as MyActivityUiState.NavigateToChat
-            onNavigateToChat(navState.chatId, navState.otherUserName)
-            myActivityViewModel.resetActionState()
+        when (val state = actionUiState) {
+            is MyActivityUiState.NavigateToChat -> {
+                onNavigateToChat(state.chatId, state.otherUserName)
+                myActivityViewModel.resetActionState()
+                requestInDialog = null // Close dialog after navigating
+            }
+            is MyActivityUiState.Success -> {
+                delay(1500) // Wait for the "Success!" message to be visible
+                requestInDialog = null // This closes the dialog
+                myActivityViewModel.resetActionState()
+            }
+            else -> { /* Do nothing for other states */ }
         }
     }
 
@@ -157,38 +166,39 @@ fun RequestManagementDialog(
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Main content is always visible during Idle state
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = when (request.status) {
-                            "open" -> "Manage Your Request"
-                            "pending" -> "Offer from: ${request.responderName}"
-                            "in_progress" -> "Request in Progress"
-                            else -> "Request Details"
-                        },
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    when (request.status) {
-                        "open" -> OpenRequestActions(onDelete = onDelete)
-                        "pending" -> PendingRequestActions(onAccept = onAccept, onDecline = onDecline)
-                        "in_progress" -> InProgressRequestActions(onCancel = onCancel)
-                    }
-                }
-
-                // Overlay for loading/success/error states
-                when (val state = actionUiState) { // CORRECTED: Use the specific state
+                // The 'when' block now controls the entire content to prevent overlap
+                when (val state = actionUiState) {
                     is MyActivityUiState.Loading -> CircularProgressIndicator(color = Color.White)
                     is MyActivityUiState.Success -> Text("Success!", color = Color.Green, fontWeight = FontWeight.Bold)
-                    is MyActivityUiState.Error -> Text(state.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                     is MyActivityUiState.NavigateToChat -> CircularProgressIndicator(color = Color.White)
-                    is MyActivityUiState.Idle -> { /* Show main content */ }
+                    is MyActivityUiState.Error -> Text(state.message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                    is MyActivityUiState.Idle -> {
+                        // The main content with buttons is now ONLY shown in the Idle state
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                text = when (request.status) {
+                                    "open" -> "Manage Your Request"
+                                    "pending" -> "Offer from: ${request.responderName}"
+                                    "in_progress" -> "Request in Progress"
+                                    else -> "Request Details"
+                                },
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            when (request.status) {
+                                "open" -> OpenRequestActions(onDelete = onDelete)
+                                "pending" -> PendingRequestActions(onAccept = onAccept, onDecline = onDecline)
+                                "in_progress" -> InProgressRequestActions(onCancel = onCancel)
+                            }
+                        }
+                    }
                 }
             }
         }

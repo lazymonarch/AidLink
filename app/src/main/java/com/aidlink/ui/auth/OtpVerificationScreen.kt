@@ -36,14 +36,8 @@ fun OtpVerificationScreen(
 
     LaunchedEffect(key1 = uiState) {
         when (uiState) {
-            is AuthUiState.AuthSuccessExistingUser -> {
-                onNavigateToHome()
-                authViewModel.resetState()
-            }
-            is AuthUiState.AuthSuccessNewUser -> {
-                onNavigateToProfileSetup()
-                authViewModel.resetState()
-            }
+            is AuthUiState.AuthSuccessExistingUser -> onNavigateToHome()
+            is AuthUiState.AuthSuccessNewUser -> onNavigateToProfileSetup()
             else -> { /* Do nothing */ }
         }
     }

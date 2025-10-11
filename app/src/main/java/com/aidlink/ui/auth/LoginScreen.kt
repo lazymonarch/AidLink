@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.sp
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.AuthUiState
 import com.aidlink.viewmodel.AuthViewModel
-
 @Composable
 fun LoginScreen(
     authViewModel: AuthViewModel,
@@ -32,10 +31,8 @@ fun LoginScreen(
     LaunchedEffect(key1 = uiState) {
         if (uiState is AuthUiState.OtpSent) {
             onNavigateToOtp((uiState as AuthUiState.OtpSent).verificationId)
-            // State is reset from the OtpVerificationScreen after it's used
         }
     }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -84,29 +81,40 @@ fun LoginScreen(
             )
         )
         Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = {
-                authViewModel.sendOtp("+91$phoneNumber", activity)
-            },
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
-            shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White,
-                contentColor = Color.Black
-            )
+            contentAlignment = Alignment.Center
         ) {
-            Text("Continue", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            when (uiState) {
+                is AuthUiState.Loading -> {
+                    CircularProgressIndicator(color = Color.White)
+                }
+                else -> {
+                    Button(
+                        onClick = { authViewModel.sendOtp("+91$phoneNumber", activity) },
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Text("Continue", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
     }
 }
-
 @Preview(showBackground = true)
 @Composable
 fun LoginScreenPreviewDark() {
     AidLinkTheme(darkTheme = true) {
-        LoginScreen(authViewModel = AuthViewModel(), onNavigateToOtp = {})
+        LoginScreen(
+            authViewModel = AuthViewModel(),
+            onNavigateToOtp = {}
+        )
     }
 }

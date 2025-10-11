@@ -6,16 +6,20 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,6 +39,24 @@ fun HomeScreen(
     onRequestClicked: (String) -> Unit
 ) {
     val requests by homeViewModel.requests.collectAsState()
+    val isRefreshing by homeViewModel.isRefreshing.collectAsState()
+
+    // --- NEW: Material 3 Pull to Refresh State ---
+    val pullToRefreshState = rememberPullToRefreshState()
+
+    // This effect triggers the refresh in the ViewModel when the user pulls
+    if (pullToRefreshState.isRefreshing) {
+        LaunchedEffect(true) {
+            homeViewModel.fetchRequests()
+        }
+    }
+
+    // This effect tells the UI to stop showing the animation when the ViewModel is done
+    LaunchedEffect(isRefreshing) {
+        if (!isRefreshing) {
+            pullToRefreshState.endRefresh()
+        }
+    }
 
     Scaffold(
         containerColor = Color(0xFF121212),
@@ -65,34 +87,49 @@ fun HomeScreen(
         }
     ) { innerPadding ->
 
-        if (requests.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No help requests in your area yet. Be the first to post one!",
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.padding(innerPadding).fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(requests) { request ->
-                    HelpRequestCard(
-                        request = request,
-                        onClick = { onRequestClicked(request.id) }
+        // --- NEW: The Box now uses the Material 3 nestedScroll modifier ---
+        Box(
+            modifier = Modifier
+                .padding(innerPadding)
+                .nestedScroll(pullToRefreshState.nestedScrollConnection)
+        ) {
+            if (requests.isEmpty() && !isRefreshing) {
+                // This Column is now scrollable to allow pull-to-refresh on an empty screen
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "No help requests in your area yet.\nPull down to refresh.",
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(32.dp)
                     )
                 }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(requests) { request ->
+                        HelpRequestCard(
+                            request = request,
+                            onClick = { onRequestClicked(request.id) }
+                        )
+                    }
+                }
             }
+
+            // --- NEW: This is the Material 3 refresh indicator ---
+            PullToRefreshContainer(
+                state = pullToRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
         }
     }
 }

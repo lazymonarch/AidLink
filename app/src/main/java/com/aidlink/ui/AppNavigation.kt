@@ -48,7 +48,7 @@ fun AppNavigation() {
             startDestination = "login",
             modifier = Modifier.padding(innerPadding)
         ) {
-            // --- Authentication Flow ---
+            // --- Authentication Flow (Simplified) ---
             composable("login") {
                 LoginScreen(
                     authViewModel = authViewModel,
