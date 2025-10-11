@@ -118,11 +118,15 @@ fun ChatItemRow(
     isDeletable: Boolean,
     onItemClick: () -> Unit
 ) {
+    // --- THIS IS THE CORRECTED COLOR LOGIC ---
     val borderColor = when {
-        !isDeletable -> Color.Green.copy(alpha = 0.8f) // In Progress
         isSelected -> MaterialTheme.colorScheme.primary
+        chatWithStatus.requestStatus == "in_progress" -> Color.Green.copy(alpha = 0.8f)
+        chatWithStatus.requestStatus == "pending_approval" -> Color(0xFFFFA500) // Orange
+        chatWithStatus.requestStatus == "completed" -> Color.Red.copy(alpha = 0.7f)
         else -> Color.Transparent
     }
+    // --- END CORRECTION ---
 
     Card(
         modifier = Modifier

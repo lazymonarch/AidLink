@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.aidlink.model.Message
 
 sealed class MyActivityUiState {
     object Idle : MyActivityUiState()
@@ -114,6 +115,18 @@ class MyActivityViewModel : ViewModel() {
             resetActionState()
         } else {
             _actionUiState.value = MyActivityUiState.Error(errorMessage)
+        }
+    }
+
+    fun onConfirmCompletion(request: HelpRequest) {
+        viewModelScope.launch {
+            _actionUiState.value = MyActivityUiState.Loading
+            val systemMessage = Message(
+                senderId = "system",
+                text = "The request has been confirmed as complete."
+            )
+            val success = repository.completeRequest(request.id, systemMessage)
+            handleActionResult(success, "Failed to confirm completion.")
         }
     }
 

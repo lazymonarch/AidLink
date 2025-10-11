@@ -1,5 +1,6 @@
 package com.aidlink.ui.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.aidlink.model.Message
 import com.aidlink.viewmodel.ChatViewModel
@@ -32,19 +34,18 @@ fun ChatScreen(
     onBackClicked: () -> Unit
 ) {
     val messages by chatViewModel.messages.collectAsState()
+    val request by chatViewModel.currentRequest.collectAsState()
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
     var text by remember { mutableStateOf("") }
     val currentUserId = Firebase.auth.currentUser?.uid
 
     LaunchedEffect(chatId) {
         chatViewModel.fetchMessages(chatId)
+        chatViewModel.getRequestDetails(chatId)
     }
 
-    // --- THIS IS THE CORRECTED AND ONLY SCROLLING LOGIC ---
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            // We scroll to the last index, which is size - 1
             listState.animateScrollToItem(messages.size - 1)
         }
     }
@@ -59,15 +60,31 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            MessageInputBar(
-                text = text,
-                onTextChange = { text = it },
-                onSendClicked = {
-                    // --- SCROLLING LOGIC IS REMOVED FROM HERE ---
-                    chatViewModel.sendMessage(chatId, text)
-                    text = ""
+            Column {
+                request?.let { req ->
+                    // Show the "I've Finished" button to the helper.
+                    if (req.status == "in_progress" && req.responderId == currentUserId) {
+                        HelperActionBar(
+                            onRequestComplete = { chatViewModel.markJobAsFinished(req) }
+                        )
+                    }
+                    // Show the confirmation bar to the requester.
+                    if (req.status == "pending_approval" && req.userId == currentUserId) {
+                        RequesterApprovalBar(
+                            onConfirm = { chatViewModel.confirmCompletion(req) },
+                            onDispute = { /* TODO: Handle dispute logic in the future */ }
+                        )
+                    }
                 }
-            )
+                MessageInputBar(
+                    text = text,
+                    onTextChange = { text = it },
+                    onSendClicked = {
+                        chatViewModel.sendMessage(chatId, text)
+                        text = ""
+                    }
+                )
+            }
         }
     ) { innerPadding ->
         LazyColumn(
@@ -76,7 +93,7 @@ fun ChatScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(messages) { message ->
+            items(messages, key = { it.timestamp.toString() }) { message ->
                 ChatItemBubble(message = message, isSentByCurrentUser = message.senderId == currentUserId)
             }
         }
@@ -85,6 +102,11 @@ fun ChatScreen(
 
 @Composable
 fun ChatItemBubble(message: Message, isSentByCurrentUser: Boolean) {
+    if (message.senderId == "system") {
+        SystemMessageBubble(message = message)
+        return
+    }
+
     val alignment = if (isSentByCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
     val backgroundColor = if (isSentByCurrentUser) Color.White else Color(0xFF1C1C1E)
     val textColor = if (isSentByCurrentUser) Color.Black else Color.White
@@ -100,6 +122,29 @@ fun ChatItemBubble(message: Message, isSentByCurrentUser: Boolean) {
                 text = message.text,
                 color = textColor,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun SystemMessageBubble(message: Message) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color.DarkGray
+        ) {
+            Text(
+                text = message.text,
+                color = Color.LightGray,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
             )
         }
     }
@@ -139,6 +184,55 @@ fun MessageInputBar(
                 modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.primary)
             ) {
                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+fun HelperActionBar(onRequestComplete: () -> Unit) {
+    Surface(color = Color(0xFF1C1C1E)) {
+        Button(
+            onClick = onRequestComplete,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50), contentColor = Color.White)
+        ) {
+            Text("I've Finished the Job", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun RequesterApprovalBar(onConfirm: () -> Unit, onDispute: () -> Unit) {
+    Surface(color = Color(0xFF1C1C1E), tonalElevation = 4.dp) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "The helper has marked the job as complete.",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedButton(
+                    onClick = onDispute,
+                    modifier = Modifier.weight(1f),
+                    border = BorderStroke(1.dp, Color.Gray)
+                ) {
+                    Text("Report Issue", color = Color.White)
+                }
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                ) {
+                    Text("Confirm Completion", color = Color.White)
+                }
             }
         }
     }

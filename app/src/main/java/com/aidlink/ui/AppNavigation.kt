@@ -162,7 +162,10 @@ fun AppNavigation() {
                     chatId = chatId,
                     otherUserName = userName,
                     chatViewModel = chatViewModel,
-                    onBackClicked = { navController.popBackStack() }
+                    onBackClicked = {
+                        chatViewModel.clearChatScreenState()
+                        navController.popBackStack()
+                    }
                 )
             }
         }

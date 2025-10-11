@@ -233,6 +233,52 @@ class AuthRepository {
         }
     }
 
+    suspend fun markRequestAsPendingApproval(requestId: String, systemMessage: Message): Boolean {
+        return try {
+            val requestDocRef = db.collection("requests").document(requestId)
+            val chatDocRef = db.collection("chats").document(requestId) // <-- Get chat doc reference
+            val messagesCollectionRef = chatDocRef.collection("messages")
+
+            db.runBatch { batch ->
+                // 1. Update the request status
+                batch.update(requestDocRef, "status", "pending_approval")
+                // 2. Post the system message
+                batch.set(messagesCollectionRef.document(), systemMessage)
+                // 3. UPDATE THE CHAT PREVIEW (This triggers the UI update)
+                batch.update(chatDocRef, "lastMessage", systemMessage.text)
+                batch.update(chatDocRef, "lastMessageTimestamp", systemMessage.timestamp)
+            }.await()
+            Log.d(tag, "Request $requestId marked as pending approval.")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error marking request as pending approval", e)
+            false
+        }
+    }
+
+    suspend fun completeRequest(requestId: String, systemMessage: Message): Boolean {
+        return try {
+            val requestDocRef = db.collection("requests").document(requestId)
+            val chatDocRef = db.collection("chats").document(requestId) // <-- Get chat doc reference
+            val messagesCollectionRef = chatDocRef.collection("messages")
+
+            db.runBatch { batch ->
+                // 1. Update the request status
+                batch.update(requestDocRef, "status", "completed")
+                // 2. Post the system message
+                batch.set(messagesCollectionRef.document(), systemMessage)
+                // 3. UPDATE THE CHAT PREVIEW (This triggers the UI update)
+                batch.update(chatDocRef, "lastMessage", systemMessage.text)
+                batch.update(chatDocRef, "lastMessageTimestamp", systemMessage.timestamp)
+            }.await()
+            Log.d(tag, "Request $requestId marked as completed.")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error completing request", e)
+            false
+        }
+    }
+
     private fun mapDocumentToHelpRequest(doc: com.google.firebase.firestore.DocumentSnapshot): HelpRequest {
         return HelpRequest(
             id = doc.id,
@@ -322,6 +368,19 @@ class AuthRepository {
             Log.e(tag, "Error deleting chats", e)
             false
         }
+    }
+
+    fun getRequestStream(requestId: String): Flow<HelpRequest?> {
+        return db.collection("requests").document(requestId)
+            .snapshots()
+            .map { doc ->
+                if (doc.exists()) {
+                    // Reusing your existing mapping logic for consistency
+                    mapDocumentToHelpRequest(doc)
+                } else {
+                    null
+                }
+            }
     }
     fun getMyRequests(userId: String): Flow<List<HelpRequest>> {
         return db.collection("requests")

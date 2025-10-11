@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
 import com.aidlink.model.ChatWithStatus
+import com.aidlink.model.HelpRequest
 import com.aidlink.model.Message
 import com.aidlink.utils.authStateFlow
 import com.google.firebase.auth.ktx.auth
@@ -24,13 +25,14 @@ class ChatViewModel : ViewModel() {
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
 
-    // --- NEW: State for managing selection mode ---
     private val _isInSelectionMode = MutableStateFlow(false)
     val isInSelectionMode: StateFlow<Boolean> = _isInSelectionMode.asStateFlow()
 
     private val _selectedChatIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedChatIds: StateFlow<Set<String>> = _selectedChatIds.asStateFlow()
-    // --- END NEW ---
+
+    private val _currentRequest = MutableStateFlow<HelpRequest?>(null)
+    val currentRequest: StateFlow<HelpRequest?> = _currentRequest.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -43,6 +45,7 @@ class ChatViewModel : ViewModel() {
             }
         }
     }
+
     private fun fetchChats(userId: String) {
         viewModelScope.launch {
             repository.getChats(userId).collect { chatList ->
@@ -50,6 +53,7 @@ class ChatViewModel : ViewModel() {
             }
         }
     }
+
     fun fetchMessages(chatId: String) {
         viewModelScope.launch {
             repository.getMessages(chatId).collect { messageList ->
@@ -57,6 +61,7 @@ class ChatViewModel : ViewModel() {
             }
         }
     }
+
     fun sendMessage(chatId: String, text: String) {
         val senderId = Firebase.auth.currentUser?.uid
         if (senderId == null || text.isBlank()) {
@@ -68,12 +73,6 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    // --- NEW: Functions to manage selection state ---
-
-    /**
-     * Toggles the selection mode on or off.
-     * When turning off, it clears any existing selections.
-     */
     fun toggleSelectionMode() {
         _isInSelectionMode.update { !it }
         if (!_isInSelectionMode.value) {
@@ -81,9 +80,6 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Adds or removes a chat from the selection set.
-     */
     fun toggleChatSelection(chatId: String) {
         _selectedChatIds.update { currentIds ->
             if (currentIds.contains(chatId)) {
@@ -101,13 +97,51 @@ class ChatViewModel : ViewModel() {
 
             val success = repository.deleteChats(idsToDelete)
             if (success) {
-                // Exit selection mode and clear the selection list after a successful deletion.
                 toggleSelectionMode()
             } else {
-                // Optionally, you can add a new state to show an error message to the user.
                 Log.e("ChatViewModel", "Failed to delete selected chats.")
             }
         }
     }
+
+    fun getRequestDetails(requestId: String) {
+        viewModelScope.launch {
+            repository.getRequestStream(requestId).collect { request ->
+                _currentRequest.value = request
+            }
+        }
+    }
+
+    fun markJobAsFinished(request: HelpRequest) {
+        val helperName = request.responderName ?: "The helper"
+        val systemMessage = Message(
+            senderId = "system",
+            text = "$helperName has marked this request as complete. Awaiting confirmation."
+        )
+        viewModelScope.launch {
+            repository.markRequestAsPendingApproval(request.id, systemMessage)
+        }
+    }
+
+    // --- NEW: Function for the requester ---
+    /**
+     * Called by the requester to confirm the job is complete.
+     */
+    fun confirmCompletion(request: HelpRequest) {
+        val requesterName = request.userId // In a real app, you'd fetch the requester's name
+        val systemMessage = Message(
+            senderId = "system",
+            text = "The request has been confirmed as complete."
+        )
+        viewModelScope.launch {
+            repository.completeRequest(request.id, systemMessage)
+            // UI will update automatically.
+        }
+    }
     // --- END NEW ---
+
+    fun clearChatScreenState() {
+        _messages.value = emptyList()
+        _currentRequest.value = null
+    }
 }
