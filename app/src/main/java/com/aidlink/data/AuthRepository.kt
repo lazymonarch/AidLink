@@ -3,6 +3,7 @@ package com.aidlink.data
 import android.app.Activity
 import android.util.Log
 import com.aidlink.model.Chat
+import com.aidlink.model.ChatWithStatus
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.Message
 import com.aidlink.model.RequestType
@@ -134,31 +135,40 @@ class AuthRepository {
     suspend fun acceptOffer(requestId: String, requesterId: String, helperId: String): Boolean {
         return try {
             val requestDocRef = db.collection("requests").document(requestId)
+            // The chat document will have the same ID as the request for easy lookup.
             val chatDocRef = db.collection("chats").document(requestId)
 
+            // Fetch user profiles outside the batch write.
             val requesterProfile = getUserProfileOnce(requesterId)
             val helperProfile = getUserProfileOnce(helperId)
 
+            // Ensure both profiles were successfully fetched before proceeding.
             if (requesterProfile == null || helperProfile == null) {
-                Log.e(tag, "Could not fetch profiles for chat creation.")
+                Log.e(tag, "Could not fetch user profiles for chat creation. Aborting.")
                 return false
             }
 
+            // Prepare the data for the new chat document.
             val chatData = mapOf(
                 "participants" to listOf(requesterId, helperId),
                 "participantInfo" to mapOf(
                     requesterId to mapOf("name" to requesterProfile.name),
                     helperId to mapOf("name" to helperProfile.name)
                 ),
-                "requestId" to requestId,
-                "createdAt" to com.google.firebase.Timestamp.now()
+                "lastMessage" to "Request accepted! You can now chat.",
+                "lastMessageTimestamp" to com.google.firebase.Timestamp.now()
+                // requestId and createdAt are no longer needed here as per the Chat model
             )
 
+            // Use a batch write to perform both operations atomically.
             db.runBatch { batch ->
+                // 1. Update the request status.
                 batch.update(requestDocRef, "status", "in_progress")
+                // 2. Create the new chat document with the prepared data.
                 batch.set(chatDocRef, chatData)
             }.await()
-            Log.d(tag, "Offer accepted and chat created for request: $requestId")
+
+            Log.d(tag, "Offer accepted and chat created successfully for request: $requestId")
             true
         } catch (e: Exception) {
             Log.e(tag, "Error accepting offer", e)
@@ -247,14 +257,20 @@ class AuthRepository {
             .map { snapshot -> snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } }
     }
 
-    fun getChats(userId: String): Flow<List<Chat>> {
+    fun getChats(userId: String): Flow<List<ChatWithStatus>> {
         return db.collection("chats")
             .whereArrayContains("participants", userId)
+            .orderBy("lastMessageTimestamp", Query.Direction.DESCENDING)
             .snapshots()
             .map { snapshot ->
                 snapshot.documents.mapNotNull { doc ->
-                    // Use the safe toObject method with our updated data class
-                    doc.toObject(Chat::class.java)?.copy(id = doc.id)
+                    val chat = doc.toObject(Chat::class.java)?.copy(id = doc.id)
+                    chat?.let {
+                        // The chat ID is the request ID. Fetch the request to get its status.
+                        val requestDoc = db.collection("requests").document(it.id).get().await()
+                        val status = requestDoc.getString("status") ?: "unknown"
+                        ChatWithStatus(chat = it, requestStatus = status)
+                    }
                 }
             }
     }
@@ -272,13 +288,38 @@ class AuthRepository {
 
     suspend fun sendMessage(chatId: String, message: Message): Boolean {
         return try {
-            db.collection("chats").document(chatId)
-                .collection("messages")
-                .add(message)
-                .await()
+            val chatDocRef = db.collection("chats").document(chatId)
+            val messagesCollectionRef = chatDocRef.collection("messages")
+
+            // Use a transaction to ensure both operations succeed or fail together.
+            db.runTransaction { transaction ->
+                // 1. Add the new message to the 'messages' subcollection.
+                transaction.set(messagesCollectionRef.document(), message)
+
+                // 2. Update the last message fields on the parent 'chat' document.
+                transaction.update(chatDocRef, "lastMessage", message.text)
+                // --- THIS IS THE FIX ---
+                transaction.update(chatDocRef, "lastMessageTimestamp", message.timestamp)
+            }.await()
             true
         } catch (e: Exception) {
             Log.e(tag, "Error sending message", e)
+            false
+        }
+    }
+
+    suspend fun deleteChats(chatIds: Set<String>): Boolean {
+        return try {
+            val batch = db.batch()
+            chatIds.forEach { chatId ->
+                val chatDocRef = db.collection("chats").document(chatId)
+                batch.delete(chatDocRef)
+            }
+            batch.commit().await()
+            Log.d(tag, "Successfully deleted chats: $chatIds")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error deleting chats", e)
             false
         }
     }

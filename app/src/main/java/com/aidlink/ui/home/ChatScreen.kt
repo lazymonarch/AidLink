@@ -22,7 +22,6 @@ import com.aidlink.model.Message
 import com.aidlink.viewmodel.ChatViewModel
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,8 +41,10 @@ fun ChatScreen(
         chatViewModel.fetchMessages(chatId)
     }
 
+    // --- THIS IS THE CORRECTED AND ONLY SCROLLING LOGIC ---
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
+            // We scroll to the last index, which is size - 1
             listState.animateScrollToItem(messages.size - 1)
         }
     }
@@ -62,11 +63,9 @@ fun ChatScreen(
                 text = text,
                 onTextChange = { text = it },
                 onSendClicked = {
+                    // --- SCROLLING LOGIC IS REMOVED FROM HERE ---
                     chatViewModel.sendMessage(chatId, text)
                     text = ""
-                    coroutineScope.launch {
-                        listState.animateScrollToItem(messages.size)
-                    }
                 }
             )
         }
