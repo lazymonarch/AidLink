@@ -3,29 +3,24 @@ package com.aidlink.ui.home
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.RequestType
 import com.aidlink.ui.theme.AidLinkTheme
@@ -39,24 +34,6 @@ fun HomeScreen(
     onRequestClicked: (String) -> Unit
 ) {
     val requests by homeViewModel.requests.collectAsState()
-    val isRefreshing by homeViewModel.isRefreshing.collectAsState()
-
-    // --- NEW: Material 3 Pull to Refresh State ---
-    val pullToRefreshState = rememberPullToRefreshState()
-
-    // This effect triggers the refresh in the ViewModel when the user pulls
-    if (pullToRefreshState.isRefreshing) {
-        LaunchedEffect(true) {
-            homeViewModel.fetchRequests()
-        }
-    }
-
-    // This effect tells the UI to stop showing the animation when the ViewModel is done
-    LaunchedEffect(isRefreshing) {
-        if (!isRefreshing) {
-            pullToRefreshState.endRefresh()
-        }
-    }
 
     Scaffold(
         containerColor = Color(0xFF121212),
@@ -87,29 +64,12 @@ fun HomeScreen(
         }
     ) { innerPadding ->
 
-        // --- NEW: The Box now uses the Material 3 nestedScroll modifier ---
+        // The UI is now much simpler. No pull-to-refresh needed.
         Box(
-            modifier = Modifier
-                .padding(innerPadding)
-                .nestedScroll(pullToRefreshState.nestedScrollConnection)
+            modifier = Modifier.padding(innerPadding)
         ) {
-            if (requests.isEmpty() && !isRefreshing) {
-                // This Column is now scrollable to allow pull-to-refresh on an empty screen
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "No help requests in your area yet.\nPull down to refresh.",
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(32.dp)
-                    )
-                }
+            if (requests.isEmpty()) {
+                EmptyStateHomeScreen()
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -124,15 +84,27 @@ fun HomeScreen(
                     }
                 }
             }
-
-            // --- NEW: This is the Material 3 refresh indicator ---
-            PullToRefreshContainer(
-                state = pullToRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
         }
     }
 }
+
+@Composable
+private fun EmptyStateHomeScreen() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "No help requests in your area yet.",
+            color = Color.Gray,
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(horizontal = 32.dp)
+        )
+    }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -204,50 +176,12 @@ private fun InfoRow(icon: ImageVector, text: String, iconColor: Color = Color.Gr
 @Preview
 @Composable
 fun HomeScreenPreview() {
-    // --- THIS IS THE CORRECTED SECTION ---
-    val previewRequests = listOf(
-        HelpRequest(
-            id = "1",
-            userId = "", // <-- ADDED DUMMY USER ID
-            title = "Need help setting up my new router",
-            description = "I'm not very tech-savvy...",
-            category = "Tech",
-            location = "Approx. 0.5 miles away",
-            type = RequestType.FEE,
-            status = "open"
-        ),
-        HelpRequest(
-            id = "2",
-            userId = "", // <-- ADDED DUMMY USER ID
-            title = "Grocery shopping assistance",
-            description = "I'm recovering from a minor surgery...",
-            category = "Shopping",
-            location = "Approx. 1.2 miles away",
-            type = RequestType.FEE,
-            status = "open"
-        ),
-        HelpRequest(
-            id = "3",
-            userId = "", // <-- ADDED DUMMY USER ID
-            title = "Dog walking needed",
-            description = "I have an energetic labrador...",
-            category = "Pet Care",
-            location = "Approx. 0.8 miles away",
-            type = RequestType.VOLUNTEER,
-            status = "completed"
-        )
-    )
     AidLinkTheme(darkTheme = true) {
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(previewRequests) { request ->
-                HelpRequestCard(
-                    request = request,
-                    onClick = {}
-                )
-            }
-        }
+        // Dummy viewmodel and functions for preview
+        HomeScreen(
+            homeViewModel = viewModel(),
+            onPostRequestClicked = { },
+            onRequestClicked = { }
+        )
     }
 }

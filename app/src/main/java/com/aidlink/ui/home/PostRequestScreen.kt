@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.HomeViewModel
-import com.aidlink.viewmodel.RequestUiState
+import com.aidlink.viewmodel.PostRequestUiState // FIXED: Import the new state class
 
 private val backgroundDark = Color(0xFF131313)
 private val textDark = Color(0xFFF6F8F8)
@@ -43,12 +43,13 @@ fun PostRequestScreen(
     var selectedCategory by remember { mutableStateOf(categories[0]) }
     var selectedCompensation by remember { mutableStateOf("Fee") }
 
-    val requestUiState by homeViewModel.requestUiState.collectAsState()
+    // FIXED: Use the new postRequestUiState
+    val postRequestUiState by homeViewModel.postRequestUiState.collectAsState()
 
-    LaunchedEffect(key1 = requestUiState) {
-        if (requestUiState is RequestUiState.Success) {
+    LaunchedEffect(key1 = postRequestUiState) {
+        if (postRequestUiState is PostRequestUiState.Success) {
             onPostRequestSuccess()
-            homeViewModel.resetRequestState()
+            homeViewModel.resetPostRequestState() // FIXED: Call the correct reset function
         }
     }
 
@@ -79,8 +80,8 @@ fun PostRequestScreen(
                         .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    when (requestUiState) {
-                        is RequestUiState.Loading -> {
+                    when (postRequestUiState) {
+                        is PostRequestUiState.Loading -> {
                             CircularProgressIndicator(color = Color.White)
                         }
                         else -> {

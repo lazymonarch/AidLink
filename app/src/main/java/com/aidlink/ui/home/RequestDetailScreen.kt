@@ -14,9 +14,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aidlink.model.HelpRequest
 import com.aidlink.model.RequestType
 import com.aidlink.viewmodel.HomeViewModel
-import com.aidlink.viewmodel.RequestUiState
+import com.aidlink.viewmodel.RespondUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,11 +26,11 @@ fun RequestDetailScreen(
     onBackClicked: () -> Unit
 ) {
     val request by homeViewModel.selectedRequest.collectAsState()
-    val uiState by homeViewModel.requestUiState.collectAsState()
+    val uiState by homeViewModel.respondUiState.collectAsState()
 
     DisposableEffect(Unit) {
         onDispose {
-            homeViewModel.resetRequestState()
+            homeViewModel.resetRespondState()
         }
     }
 
@@ -43,63 +44,74 @@ fun RequestDetailScreen(
             )
         },
         bottomBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                when (uiState) {
-                    is RequestUiState.Loading -> CircularProgressIndicator(color = Color.White)
-                    is RequestUiState.Success -> Text("Offer Sent!", color = Color.Green, fontWeight = FontWeight.Bold)
-                    is RequestUiState.Error -> Text((uiState as RequestUiState.Error).message, color = MaterialTheme.colorScheme.error)
-                    is RequestUiState.Idle -> {
-                        Button(
-                            onClick = { request?.id?.let { homeViewModel.onRespondToRequest(it) } },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
-                            shape = RoundedCornerShape(50),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
-                        ) {
-                            Text("I Can Help", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            if (request != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when (uiState) {
+                        is RespondUiState.Loading -> CircularProgressIndicator(color = Color.White)
+                        is RespondUiState.Success -> Text("Offer Sent!", color = Color.Green, fontWeight = FontWeight.Bold)
+                        is RespondUiState.Error -> Text((uiState as RespondUiState.Error).message, color = MaterialTheme.colorScheme.error)
+                        is RespondUiState.Idle -> {
+                            Button(
+                                onClick = { request?.id?.let { homeViewModel.onRespondToRequest(it) } },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp),
+                                shape = RoundedCornerShape(50),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
+                            ) {
+                                Text("I Can Help", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
-                    // This 'else' makes the block exhaustive and handles any other state
-                    else -> { /* Do nothing for other states like NavigateToChat */ }
                 }
             }
         }
     ) { innerPadding ->
         request?.let {
-            Column(
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        Text(text = it.title, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(text = it.description, color = Color.LightGray, style = MaterialTheme.typography.bodyLarge)
-                        Spacer(modifier = Modifier.height(24.dp))
-                        HorizontalDivider(color = Color.DarkGray)
-                        DetailRow(label = "Category", value = it.category)
-                        HorizontalDivider(color = Color.DarkGray)
-                        DetailRow(label = "Location", value = it.location)
-                        HorizontalDivider(color = Color.DarkGray)
-                        val compensationText = if (it.type == RequestType.FEE) "Fee" else "Volunteer"
-                        DetailRow(label = "Compensation", value = compensationText)
-                    }
-                }
+            RequestDetailsContent(it, innerPadding)
+        } ?: run {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
         }
     }
 }
+
+@Composable
+private fun RequestDetailsContent(request: HelpRequest, innerPadding: PaddingValues) {
+    Column(
+        modifier = Modifier
+            .padding(innerPadding)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(text = request.title, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(text = request.description, color = Color.LightGray, style = MaterialTheme.typography.bodyLarge)
+                Spacer(modifier = Modifier.height(24.dp))
+                HorizontalDivider(color = Color.DarkGray)
+                DetailRow(label = "Category", value = request.category)
+                HorizontalDivider(color = Color.DarkGray)
+                DetailRow(label = "Location", value = request.location)
+                HorizontalDivider(color = Color.DarkGray)
+                val compensationText = if (request.type == RequestType.FEE) "Fee" else "Volunteer"
+                DetailRow(label = "Compensation", value = compensationText)
+            }
+        }
+    }
+}
+
+
 @Composable
 private fun DetailRow(label: String, value: String) {
     Row(

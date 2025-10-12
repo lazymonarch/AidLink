@@ -3,56 +3,52 @@ package com.aidlink.data
 import android.app.Activity
 import android.util.Log
 import com.aidlink.model.Chat
-import com.aidlink.model.ChatWithStatus
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.Message
-import com.aidlink.model.RequestType
-import com.aidlink.model.Review
 import com.aidlink.model.UserProfile
-import com.google.firebase.FirebaseException
+import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.snapshots
+import com.google.firebase.firestore.firestore
+import com.google.firebase.firestore.ktx.toObject
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
-class AuthRepository {
-
+class AuthRepository(
+    private val auth: FirebaseAuth,
+    private val db: FirebaseFirestore,
+) {
     private val tag = "AuthRepository"
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+
+    // --- NEW: Auth State Flow ---
+    // This function is the key to fixing the startup crash.
+    // It provides a continuous stream of the user's login status.
+    fun getAuthStateFlow(): Flow<Boolean> = callbackFlow {
+        val listener = FirebaseAuth.AuthStateListener { auth ->
+            trySend(auth.currentUser != null)
+        }
+        auth.addAuthStateListener(listener)
+        awaitClose { auth.removeAuthStateListener(listener) }
+    }
 
     fun getCurrentUser() = auth.currentUser
 
-    suspend fun sendOtp(
-        phone: String,
+    fun sendVerificationCode(
+        phoneNumber: String,
         activity: Activity,
-        onCodeSent: (String) -> Unit,
-        onVerificationFailed: (FirebaseException) -> Unit,
-        onVerificationCompleted: (PhoneAuthCredential) -> Unit
+        callbacks: PhoneAuthProvider.OnVerificationStateChangedCallbacks,
     ) {
-        val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-            override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-                onVerificationCompleted(credential)
-            }
-            override fun onVerificationFailed(e: FirebaseException) {
-                onVerificationFailed(e)
-            }
-            override fun onCodeSent(verificationId: String, token: PhoneAuthProvider.ForceResendingToken) {
-                onCodeSent(verificationId)
-            }
-        }
         val options = PhoneAuthOptions.newBuilder(auth)
-            .setPhoneNumber(phone)
+            .setPhoneNumber(phoneNumber)
             .setTimeout(60L, TimeUnit.SECONDS)
             .setActivity(activity)
             .setCallbacks(callbacks)
@@ -60,287 +56,175 @@ class AuthRepository {
         PhoneAuthProvider.verifyPhoneNumber(options)
     }
 
-    fun getCredential(verificationId: String, otp: String): PhoneAuthCredential {
-        return PhoneAuthProvider.getCredential(verificationId, otp)
-    }
-
-    suspend fun signInWithCredential(credential: PhoneAuthCredential) = suspendCoroutine { continuation ->
-        Log.d(tag, "Attempting to sign in with credential...")
-        auth.signInWithCredential(credential)
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    Log.d(tag, "Sign-in task was SUCCESSFUL.")
-                    continuation.resume(task.result?.user)
-                } else {
-                    Log.e(tag, "Sign-in task FAILED", task.exception)
-                    continuation.resume(null)
-                }
-            }
-    }
-
-    suspend fun checkIfProfileExists(uid: String): Boolean {
+    suspend fun signInWithPhoneAuthCredential(credential: PhoneAuthCredential): Boolean {
         return try {
-            db.collection("users").document(uid).get().await().exists()
-        } catch (e: Exception) {
-            Log.e(tag, "Error checking if profile exists", e)
-            false
-        }
-    }
-
-    suspend fun createUserProfile(uid: String, profile: Map<String, Any>): Boolean {
-        return try {
-            db.collection("users").document(uid).set(profile).await()
-            true // CORRECTED: Ensures true is returned on success
-        } catch (e: Exception) {
-            Log.e(tag, "Error creating user profile", e)
-            false
-        }
-    }
-
-    suspend fun saveRequest(requestData: Map<String, Any>): Boolean {
-        return try {
-            db.collection("requests").add(requestData).await()
-            Log.d(tag, "Request saved successfully.")
+            auth.signInWithCredential(credential).await()
             true
         } catch (e: Exception) {
-            Log.e(tag, "Error saving request", e)
+            Log.e(tag, "signInWithPhoneAuthCredential failed", e)
             false
         }
     }
 
-    suspend fun addResponderToRequest(requestId: String, responderId: String, responderName: String): Boolean {
+    suspend fun isUserProfileExists(): Boolean {
+        val user = getCurrentUser() ?: return false
         return try {
-            db.collection("requests").document(requestId)
-                .update(mapOf(
-                    "status" to "pending",
-                    "responderId" to responderId,
-                    "responderName" to responderName
-                )).await()
-            Log.d(tag, "Successfully added responder to request $requestId")
+            val document = db.collection("users").document(user.uid).get().await()
+            document.exists()
+        } catch (e: Exception) {
+            Log.e(tag, "isUserProfileExists failed", e)
+            false
+        }
+    }
+
+    suspend fun createUserProfile(userProfile: UserProfile): Boolean {
+        val user = getCurrentUser() ?: return false
+        return try {
+            db.collection("users").document(user.uid).set(userProfile).await()
             true
         } catch (e: Exception) {
-            Log.e(tag, "Error adding responder to request", e)
+            Log.e(tag, "createUserProfile failed", e)
             false
         }
     }
 
-    suspend fun getUserProfileOnce(userId: String): UserProfile? {
+    suspend fun getUserProfileOnce(uid: String): UserProfile? {
         return try {
-            db.collection("users").document(userId).get().await().toObject(UserProfile::class.java)
+            db.collection("users").document(uid).get().await().toObject<UserProfile>()
         } catch (e: Exception) {
-            Log.e(tag, "Error getting user profile once", e)
+            Log.e(tag, "Error fetching user profile", e)
             null
         }
     }
 
-    suspend fun acceptOffer(requestId: String, requesterId: String, helperId: String): Boolean {
-        return try {
-            val requestDocRef = db.collection("requests").document(requestId)
-            // The chat document will have the same ID as the request for easy lookup.
-            val chatDocRef = db.collection("chats").document(requestId)
-
-            // Fetch user profiles outside the batch write.
-            val requesterProfile = getUserProfileOnce(requesterId)
-            val helperProfile = getUserProfileOnce(helperId)
-
-            // Ensure both profiles were successfully fetched before proceeding.
-            if (requesterProfile == null || helperProfile == null) {
-                Log.e(tag, "Could not fetch user profiles for chat creation. Aborting.")
-                return false
+    fun getUserProfile(uid: String): Flow<UserProfile?> = callbackFlow {
+        val listener = db.collection("users").document(uid)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                trySend(snapshot?.toObject<UserProfile>())
             }
-
-            // Prepare the data for the new chat document.
-            val chatData = mapOf(
-                "participants" to listOf(requesterId, helperId),
-                "participantInfo" to mapOf(
-                    requesterId to mapOf("name" to requesterProfile.name),
-                    helperId to mapOf("name" to helperProfile.name)
-                ),
-                "lastMessage" to "Request accepted! You can now chat.",
-                "lastMessageTimestamp" to com.google.firebase.Timestamp.now()
-                // requestId and createdAt are no longer needed here as per the Chat model
-            )
-
-            // Use a batch write to perform both operations atomically.
-            db.runBatch { batch ->
-                // 1. Update the request status.
-                batch.update(requestDocRef, "status", "in_progress")
-                // 2. Create the new chat document with the prepared data.
-                batch.set(chatDocRef, chatData)
-            }.await()
-
-            Log.d(tag, "Offer accepted and chat created successfully for request: $requestId")
-            true
-        } catch (e: Exception) {
-            Log.e(tag, "Error accepting offer", e)
-            false
-        }
+        awaitClose { listener.remove() }
     }
 
-    suspend fun declineOffer(requestId: String): Boolean {
+    suspend fun requestAction(requestId: String, action: String, extraData: Map<String, Any> = emptyMap()): Boolean {
         return try {
-            db.collection("requests").document(requestId)
-                .update(mapOf(
-                    "status" to "open",
-                    "responderId" to FieldValue.delete(),
-                    "responderName" to FieldValue.delete()
-                )).await()
-            Log.d(tag, "Successfully declined offer for request $requestId")
+            val dataToUpdate = mutableMapOf<String, Any>("action" to action)
+            dataToUpdate.putAll(extraData)
+            dataToUpdate["lastActionTimestamp"] = FieldValue.serverTimestamp()
+            db.collection("requests").document(requestId).update(dataToUpdate).await()
             true
         } catch (e: Exception) {
-            Log.e(tag, "Error declining offer", e)
+            Log.e(tag, "Error requesting action '$action'", e)
             false
         }
     }
 
-    suspend fun deleteRequest(requestId: String): Boolean {
+    suspend fun createRequest(request: HelpRequest): Boolean {
         return try {
-            db.collection("requests").document(requestId).delete().await()
-            Log.d(tag, "Successfully deleted request: $requestId")
+            db.collection("requests").add(request).await()
             true
         } catch (e: Exception) {
-            Log.e(tag, "Error deleting request", e)
+            Log.e(tag, "Error creating request", e)
             false
         }
     }
 
-    suspend fun cancelRequest(requestId: String): Boolean {
-        return try {
-            // This is now identical to declineOffer
-            db.collection("requests").document(requestId)
-                .update(
-                    mapOf(
-                        "status" to "open",
-                        "responderId" to FieldValue.delete(),
-                        "responderName" to FieldValue.delete()
-                    )
-                ).await()
-            Log.d(tag, "Successfully cancelled request (reverted to open): $requestId")
-            true
-        } catch (e: Exception) {
-            Log.e(tag, "Error cancelling request", e)
-            false
-        }
-    }
-
-    suspend fun editRequest(requestId: String, updatedData: Map<String, Any>): Boolean {
-        return try {
-            db.collection("requests").document(requestId).update(updatedData).await()
-            Log.d(tag, "Successfully edited request: $requestId")
-            true
-        } catch (e: Exception) {
-            Log.e(tag, "Error editing request", e)
-            false
-        }
-    }
-
-    suspend fun markRequestAsPendingApproval(requestId: String, systemMessage: Message): Boolean {
-        return try {
-            val requestDocRef = db.collection("requests").document(requestId)
-            val chatDocRef = db.collection("chats").document(requestId) // <-- Get chat doc reference
-            val messagesCollectionRef = chatDocRef.collection("messages")
-
-            db.runBatch { batch ->
-                // 1. Update the request status
-                batch.update(requestDocRef, "status", "pending_approval")
-                // 2. Post the system message
-                batch.set(messagesCollectionRef.document(), systemMessage)
-                // 3. UPDATE THE CHAT PREVIEW (This triggers the UI update)
-                batch.update(chatDocRef, "lastMessage", systemMessage.text)
-                batch.update(chatDocRef, "lastMessageTimestamp", systemMessage.timestamp)
-            }.await()
-            Log.d(tag, "Request $requestId marked as pending approval.")
-            true
-        } catch (e: Exception) {
-            Log.e(tag, "Error marking request as pending approval", e)
-            false
-        }
-    }
-
-    suspend fun completeRequest(requestId: String, systemMessage: Message): Boolean {
-        return try {
-            val requestDocRef = db.collection("requests").document(requestId)
-            val chatDocRef = db.collection("chats").document(requestId) // <-- Get chat doc reference
-            val messagesCollectionRef = chatDocRef.collection("messages")
-
-            db.runBatch { batch ->
-                // 1. Update the request status
-                batch.update(requestDocRef, "status", "completed")
-                // 2. Post the system message
-                batch.set(messagesCollectionRef.document(), systemMessage)
-                // 3. UPDATE THE CHAT PREVIEW (This triggers the UI update)
-                batch.update(chatDocRef, "lastMessage", systemMessage.text)
-                batch.update(chatDocRef, "lastMessageTimestamp", systemMessage.timestamp)
-            }.await()
-            Log.d(tag, "Request $requestId marked as completed.")
-            true
-        } catch (e: Exception) {
-            Log.e(tag, "Error completing request", e)
-            false
-        }
-    }
-
-    private fun mapDocumentToHelpRequest(doc: com.google.firebase.firestore.DocumentSnapshot): HelpRequest {
-        return HelpRequest(
-            id = doc.id,
-            userId = doc.getString("userId") ?: "",
-            title = doc.getString("title") ?: "",
-            description = doc.getString("description") ?: "",
-            category = doc.getString("category") ?: "",
-            location = "Near...",
-            type = if (doc.getString("compensation") == "Volunteer") RequestType.VOLUNTEER else RequestType.FEE,
-            status = doc.getString("status") ?: "open",
-            createdAt = doc.getTimestamp("createdAt"),
-            responderId = doc.getString("responderId"),
-            responderName = doc.getString("responderName")
-        )
-    }
-
-    fun getRequests(): Flow<List<HelpRequest>> {
-        return db.collection("requests")
+    fun getOpenHelpRequests(): Flow<List<HelpRequest>> = callbackFlow {
+        val listener = db.collection("requests")
             .whereEqualTo("status", "open")
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .snapshots()
-            .map { snapshot -> snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } }
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshots, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val requests = snapshots?.map { it.toObject<HelpRequest>().copy(id = it.id) }
+                trySend(requests ?: emptyList())
+            }
+        awaitClose { listener.remove() }
     }
 
-    fun getChats(userId: String): Flow<List<ChatWithStatus>> {
-        return db.collection("chats")
+    suspend fun getRequestById(requestId: String): HelpRequest? {
+        return try {
+            val document = db.collection("requests").document(requestId).get().await()
+            document.toObject<HelpRequest>()?.copy(id = document.id)
+        } catch (e: Exception) {
+            Log.e(tag, "Error fetching request by ID", e)
+            null
+        }
+    }
+
+    fun getMyActivityRequests(): Flow<List<HelpRequest>> = callbackFlow {
+        val userId = getCurrentUser()?.uid
+        if (userId == null) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        val listener = db.collection("requests")
+            .whereIn("status", listOf("pending", "in_progress", "completed", "pending_completion"))
+            .addSnapshotListener { snapshots, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val allRequests = snapshots?.mapNotNull { it.toObject<HelpRequest>().copy(id = it.id) } ?: emptyList()
+                val myRequests = allRequests.filter { it.userId == userId || it.responderId == userId }
+                    .sortedByDescending { it.timestamp?.seconds ?: 0L }
+                trySend(myRequests)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    fun getChats(): Flow<List<Chat>> = callbackFlow {
+        val userId = getCurrentUser()?.uid
+        if (userId == null) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+        val listener = db.collection("chats")
             .whereArrayContains("participants", userId)
             .orderBy("lastMessageTimestamp", Query.Direction.DESCENDING)
-            .snapshots()
-            .map { snapshot ->
-                snapshot.documents.mapNotNull { doc ->
-                    val chat = doc.toObject(Chat::class.java)?.copy(id = doc.id)
-                    chat?.let {
-                        // The chat ID is the request ID. Fetch the request to get its status.
-                        val requestDoc = db.collection("requests").document(it.id).get().await()
-                        val status = requestDoc.getString("status") ?: "unknown"
-                        ChatWithStatus(chat = it, requestStatus = status)
-                    }
+            .addSnapshotListener { snapshots, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
                 }
+                val chats = snapshots?.map { it.toObject<Chat>().copy(id = it.id) }
+                trySend(chats ?: emptyList())
             }
+        awaitClose { listener.remove() }
     }
 
-
-    fun getMessages(chatId: String): Flow<List<Message>> {
-        return db.collection("chats").document(chatId)
-            .collection("messages")
+    fun getMessages(chatId: String): Flow<List<Message>> = callbackFlow {
+        val listener = db.collection("chats").document(chatId).collection("messages")
             .orderBy("timestamp", Query.Direction.ASCENDING)
-            .snapshots()
-            .map { snapshot ->
-                snapshot.toObjects(Message::class.java)
+            .addSnapshotListener { snapshots, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val messages = snapshots?.mapNotNull { it.toObject<Message>() }
+                trySend(messages ?: emptyList())
             }
+        awaitClose { listener.remove() }
     }
 
     suspend fun sendMessage(chatId: String, message: Message): Boolean {
         return try {
-            val chatDocRef = db.collection("chats").document(chatId)
-            val messagesCollectionRef = chatDocRef.collection("messages")
-            db.runTransaction { transaction ->
-                transaction.set(messagesCollectionRef.document(), message)
-                transaction.update(chatDocRef, "lastMessage", message.text)
-                transaction.update(chatDocRef, "lastMessageTimestamp", message.timestamp)
+            val chatRef = db.collection("chats").document(chatId)
+            val messageRef = chatRef.collection("messages").document()
+            db.runBatch { batch ->
+                batch.set(messageRef, message)
+                batch.update(chatRef, mapOf(
+                    "lastMessage" to message.text,
+                    "lastMessageTimestamp" to message.timestamp
+                ))
             }.await()
             true
         } catch (e: Exception) {
@@ -349,86 +233,28 @@ class AuthRepository {
         }
     }
 
-    suspend fun deleteChats(chatIds: Set<String>): Boolean {
+    suspend fun enqueueRequestAction(requestId: String, actionType: String): Boolean {
         return try {
-            val batch = db.batch()
-            chatIds.forEach { chatId ->
-                val chatDocRef = db.collection("chats").document(chatId)
-                batch.delete(chatDocRef)
-            }
-            batch.commit().await()
-            Log.d(tag, "Successfully deleted chats: $chatIds")
-            true
-        } catch (e: Exception) {
-            Log.e(tag, "Error deleting chats", e)
-            false
-        }
-    }
-
-    suspend fun submitReview(helperId: String, review: Review): Boolean {
-        return try {
-            db.collection("users").document(helperId)
-                .collection("reviews")
-                .add(review)
+            val uid = Firebase.auth.currentUser?.uid ?: return false
+            val action = mapOf(
+                "type" to actionType,
+                "createdBy" to uid,
+                "createdAt" to FieldValue.serverTimestamp()
+            )
+            Firebase.firestore.collection("requests")
+                .document(requestId)
+                .collection("actions")
+                .add(action)
                 .await()
-            Log.d(tag, "Review submitted successfully for user $helperId")
             true
         } catch (e: Exception) {
-            Log.e(tag, "Error submitting review", e)
+            Log.e("AuthRepository", "Failed to enqueue action", e)
             false
         }
     }
 
-    fun getRequestStream(requestId: String): Flow<HelpRequest?> {
-        return db.collection("requests").document(requestId)
-            .snapshots()
-            .map { doc ->
-                if (doc.exists()) {
-                    // Reusing your existing mapping logic for consistency
-                    mapDocumentToHelpRequest(doc)
-                } else {
-                    null
-                }
-            }
-    }
-    fun getMyRequests(userId: String): Flow<List<HelpRequest>> {
-        return db.collection("requests")
-            .whereEqualTo("userId", userId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .snapshots()
-            .map { snapshot -> snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } }
-    }
 
-    fun getMyResponses(userId: String): Flow<List<HelpRequest>> {
-        return db.collection("requests")
-            .whereEqualTo("responderId", userId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .snapshots()
-            .map { snapshot -> snapshot.documents.mapNotNull { doc -> mapDocumentToHelpRequest(doc) } }
-    }
-
-    fun getUserProfile(userId: String): Flow<UserProfile?> {
-        return db.collection("users").document(userId)
-            .snapshots()
-            .map { snapshot -> snapshot.toObject(UserProfile::class.java) }
-    }
-
-    fun getUserHelpsCount(userId: String): Flow<Int> {
-        return db.collection("requests")
-            .whereEqualTo("responderId", userId)
-            .whereEqualTo("status", "completed")
-            .snapshots()
-            .map { snapshot -> snapshot.size() }
-    }
-
-    fun getUserRequestsCount(userId: String): Flow<Int> {
-        return db.collection("requests")
-            .whereEqualTo("userId", userId)
-            .snapshots()
-            .map { snapshot -> snapshot.size() }
-    }
-
-    fun logout() {
+    fun signOut() {
         auth.signOut()
     }
 }

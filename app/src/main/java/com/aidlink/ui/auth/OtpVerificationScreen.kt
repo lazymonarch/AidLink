@@ -23,6 +23,7 @@ import com.aidlink.ui.common.SphereLoader
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.AuthUiState
 import com.aidlink.viewmodel.AuthViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,7 +51,6 @@ fun OtpVerificationScreen(
         }
     }
 
-    // Wrap the screen in a Box to allow overlaying the loader
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -66,12 +66,12 @@ fun OtpVerificationScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent, // Make TopAppBar transparent
+                        containerColor = Color.Transparent,
                         navigationIconContentColor = Color.White
                     )
                 )
             },
-            containerColor = Color.Transparent // Make Scaffold transparent
+            containerColor = Color.Transparent
         ) { innerPadding ->
             Box(
                 modifier = Modifier
@@ -131,8 +131,6 @@ fun OtpVerificationScreen(
                         )
                     }
 
-                    // --- THIS IS THE FINAL, CORRECTED LOGIC ---
-                    // The button now shows for any state that isn't Loading or a Success state.
                     if (uiState !is AuthUiState.Loading &&
                         uiState !is AuthUiState.AuthSuccessExistingUser &&
                         uiState !is AuthUiState.AuthSuccessNewUser
@@ -220,8 +218,9 @@ private fun OtpInputField(
 @Composable
 fun OtpVerificationScreenPreview() {
     AidLinkTheme(darkTheme = true) {
+        // FIXED: We no longer pass a ViewModel to the preview.
         OtpVerificationScreen(
-            authViewModel = AuthViewModel(),
+            authViewModel = viewModel(),
             verificationId = "test_id",
             onBackClicked = {},
             onNavigateToHome = {},

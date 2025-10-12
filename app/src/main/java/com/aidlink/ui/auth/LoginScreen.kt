@@ -1,5 +1,6 @@
 package com.aidlink.ui.auth
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -26,7 +27,9 @@ import com.aidlink.viewmodel.AuthUiState
 import com.aidlink.viewmodel.AuthViewModel
 import com.aidlink.ui.theme.Montserrat
 import com.aidlink.ui.common.SphereLoader
+import androidx.lifecycle.viewmodel.compose.viewModel
 
+@SuppressLint("ContextCastToActivity")
 @Composable
 fun LoginScreen(
     authViewModel: AuthViewModel,
@@ -34,7 +37,7 @@ fun LoginScreen(
 ) {
     val uiState by authViewModel.uiState.collectAsState()
     var phoneNumber by remember { mutableStateOf("") }
-    val activity = LocalContext.current as Activity
+    val activity = LocalContext.current as? Activity
 
     LaunchedEffect(key1 = uiState) {
         if (uiState is AuthUiState.OtpSent) {
@@ -102,11 +105,13 @@ fun LoginScreen(
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                // --- THIS IS THE FIX ---
-                // Show the button ONLY when the state is Idle or an Error has occurred.
                 if (uiState is AuthUiState.Idle || uiState is AuthUiState.Error) {
                     Button(
-                        onClick = { authViewModel.sendOtp("+91$phoneNumber", activity) },
+                        onClick = {
+                            if (activity != null) {
+                                authViewModel.sendOtp("+91$phoneNumber", activity)
+                            }
+                        },
                         modifier = Modifier.fillMaxSize(),
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
@@ -121,7 +126,6 @@ fun LoginScreen(
             }
         }
 
-        // Show the loader only when the state is specifically 'Loading'.
         if (uiState is AuthUiState.Loading) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
             Box(
@@ -140,6 +144,8 @@ fun LoginScreen(
 @Composable
 fun LoginScreenPreviewDark() {
     AidLinkTheme(darkTheme = true) {
-        LoginScreen(authViewModel = AuthViewModel(), onNavigateToOtp = {})
+        // FIXED: We no longer pass a ViewModel to the preview.
+        // The preview renders a static version of the UI.
+        LoginScreen(authViewModel = viewModel(), onNavigateToOtp = {})
     }
 }

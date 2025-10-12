@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.sp
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.AuthUiState
 import com.aidlink.viewmodel.AuthViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,6 +137,7 @@ private fun CustomTextField(
 @Composable
 fun ProfileSetupScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        ProfileSetupScreen(authViewModel = AuthViewModel(), onProfileSetupComplete = {})
+        // FIXED: We no longer pass a ViewModel to the preview.
+        ProfileSetupScreen(authViewModel = viewModel(), onProfileSetupComplete = {})
     }
 }

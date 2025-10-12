@@ -3,11 +3,11 @@
   <component name="deploymentTargetSelector">
     <selectionStates>
       <SelectionState runConfigName="AidLink">
-        <option name="selectionMode" value="DIALOG" />
-        <DropdownSelection timestamp="2025-10-11T17:19:16.311305Z">
+        <option name="selectionMode" value="DROPDOWN" />
+        <DropdownSelection timestamp="2025-10-12T11:36:49.766256Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=f00aff9a" />
+              <DeviceId pluginId="PhysicalDevice" identifier="serial=c7dd88a7" />
             </handle>
           </Target>
         </DropdownSelection>

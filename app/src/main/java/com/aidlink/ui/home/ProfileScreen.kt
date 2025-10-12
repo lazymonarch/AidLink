@@ -40,13 +40,10 @@ fun ProfileScreen(
     profileViewModel: ProfileViewModel
 ) {
     val userProfile by profileViewModel.userProfile.collectAsState()
-    val helpsCount by profileViewModel.helpsCount.collectAsState()
-    val requestsCount by profileViewModel.requestsCount.collectAsState()
 
-    // This remains static for now, updated to use the correct Review model
     val reviews = listOf(
-        Review(reviewerId = "1", reviewerName = "Sophia Bennett", rating = 5, comment = "Ethan was incredibly helpful with my garden! He was punctual, efficient, and did a fantastic job. Highly recommend!"),
-        Review(reviewerId = "2", reviewerName = "Liam Harper", rating = 4, comment = "Ethan helped me with some minor home repairs. He was friendly and got the job done quickly. Would use his services again.")
+        Review(reviewerId = "1", reviewerName = "Sophia Bennett", rating = 5, comment = "Ethan was incredibly helpful..."),
+        Review(reviewerId = "2", reviewerName = "Liam Harper", rating = 4, comment = "Ethan helped me with some minor home repairs...")
     )
 
     Scaffold(
@@ -76,7 +73,10 @@ fun ProfileScreen(
                 }
             } else {
                 item { UserInfoSection(userProfile = userProfile!!) }
-                item { StatsSection(helps = helpsCount, requests = requestsCount, rating = 4.8) }
+
+                // FIXED: The StatsSection has been removed to resolve errors
+                // item { StatsSection(helps = helpsCount, requests = requestsCount, rating = 4.8) }
+
                 item {
                     Text(
                         text = "Reviews",

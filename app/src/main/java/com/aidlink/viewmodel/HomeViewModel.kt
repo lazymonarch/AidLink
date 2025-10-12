@@ -1,129 +1,101 @@
 package com.aidlink.viewmodel
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
 import com.aidlink.model.HelpRequest
-import com.aidlink.utils.authStateFlow
-import com.google.firebase.Timestamp
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class HomeViewModel : ViewModel() {
+sealed class PostRequestUiState {
+    object Idle : PostRequestUiState()
+    object Loading : PostRequestUiState()
+    object Success : PostRequestUiState()
+    data class Error(val message: String) : PostRequestUiState()
+}
 
-    private val tag = "HomeViewModel"
-    private val repository = AuthRepository()
-    private var fetchJob: Job? = null // CORRECTED: Added missing property
+sealed class RespondUiState {
+    object Idle : RespondUiState()
+    object Loading : RespondUiState()
+    object Success : RespondUiState()
+    data class Error(val message: String) : RespondUiState()
+}
 
-    private val _requests = MutableStateFlow<List<HelpRequest>>(emptyList())
-    val requests: StateFlow<List<HelpRequest>> = _requests.asStateFlow()
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    private val repository: AuthRepository
+) : ViewModel() {
+
+    val requests: StateFlow<List<HelpRequest>> = repository.getAuthStateFlow()
+        .flatMapLatest { isLoggedIn ->
+            if (isLoggedIn) {
+                repository.getOpenHelpRequests()
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _selectedRequest = MutableStateFlow<HelpRequest?>(null)
     val selectedRequest: StateFlow<HelpRequest?> = _selectedRequest.asStateFlow()
 
-    private val _requestUiState = MutableStateFlow<RequestUiState>(RequestUiState.Idle)
-    val requestUiState = _requestUiState.asStateFlow()
+    private val _postRequestUiState = MutableStateFlow<PostRequestUiState>(PostRequestUiState.Idle)
+    val postRequestUiState: StateFlow<PostRequestUiState> = _postRequestUiState.asStateFlow()
 
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+    private val _respondUiState = MutableStateFlow<RespondUiState>(RespondUiState.Idle)
+    val respondUiState: StateFlow<RespondUiState> = _respondUiState.asStateFlow()
 
-    init {
+    fun onRespondToRequest(requestId: String) {
         viewModelScope.launch {
-            Firebase.auth.authStateFlow().collect { user ->
-                if (user != null) {
-                    fetchRequests()
-                } else {
-                    _requests.value = emptyList()
-                }
+            _respondUiState.value = RespondUiState.Loading
+            val currentUser = repository.getCurrentUser() ?: run {
+                _respondUiState.value = RespondUiState.Error("You must be logged in.")
+                return@launch
             }
+            val userProfile = repository.getUserProfileOnce(currentUser.uid) ?: run {
+                _respondUiState.value = RespondUiState.Error("Could not find your profile.")
+                return@launch
+            }
+            val data = mapOf("responderId" to currentUser.uid, "responderName" to userProfile.name)
+            val success = repository.requestAction(requestId, "respond", data)
+            _respondUiState.value = if (success) RespondUiState.Success else RespondUiState.Error("Failed to send offer.")
         }
     }
 
-    fun fetchRequests() {
-        val userId = Firebase.auth.currentUser?.uid ?: return
-        fetchJob?.cancel()
-        fetchJob = viewModelScope.launch {
-            _isRefreshing.value = true
-            repository.getRequests()
-                .catch { exception ->
-                    Log.e(tag, "Error fetching requests", exception)
-                    _isRefreshing.value = false
-                }
-                .collect { requestList ->
-                    _requests.value = requestList.filter { it.userId != userId }
-                    _isRefreshing.value = false
-                }
+    fun resetRespondState() {
+        _respondUiState.value = RespondUiState.Idle
+    }
+
+    fun getRequestById(requestId: String) {
+        viewModelScope.launch {
+            _selectedRequest.value = repository.getRequestById(requestId)
         }
     }
 
     fun postRequest(title: String, description: String, category: String, compensation: String) {
         viewModelScope.launch {
-            _requestUiState.value = RequestUiState.Loading
-            val currentUser = Firebase.auth.currentUser
-
-            if (currentUser == null) {
-                _requestUiState.value = RequestUiState.Error("User not logged in.")
+            _postRequestUiState.value = PostRequestUiState.Loading
+            val currentUser = repository.getCurrentUser() ?: run {
+                _postRequestUiState.value = PostRequestUiState.Error("You must be logged in.")
                 return@launch
             }
-
-            val requestData = mapOf(
-                "userId" to currentUser.uid,
-                "title" to title,
-                "description" to description,
-                "category" to category,
-                "compensation" to compensation,
-                "status" to "open",
-                "createdAt" to Timestamp.now()
+            val newRequest = HelpRequest(
+                userId = currentUser.uid,
+                title = title,
+                description = description,
+                category = category,
+                location = "User's Area",
+                type = if (compensation == "Fee") com.aidlink.model.RequestType.FEE else com.aidlink.model.RequestType.VOLUNTEER,
+                status = "open"
             )
-
-            Log.d(tag, "Attempting to save request: $requestData")
-            val success = repository.saveRequest(requestData)
-
-            if (success) {
-                _requestUiState.value = RequestUiState.Success
-            } else {
-                _requestUiState.value = RequestUiState.Error("Failed to post request.")
-            }
+            val success = repository.createRequest(newRequest)
+            _postRequestUiState.value = if (success) PostRequestUiState.Success else PostRequestUiState.Error("Failed to post request.")
         }
     }
 
-    fun onRespondToRequest(requestId: String) {
-        viewModelScope.launch {
-            _requestUiState.value = RequestUiState.Loading
-            val currentUser = repository.getCurrentUser()
-            val userProfile = currentUser?.uid?.let { repository.getUserProfileOnce(it) }
-
-            if (currentUser == null || userProfile == null) {
-                _requestUiState.value = RequestUiState.Error("Could not identify user.")
-                return@launch
-            }
-
-            val success = repository.addResponderToRequest(
-                requestId = requestId,
-                responderId = currentUser.uid,
-                responderName = userProfile.name
-            )
-
-            if (success) {
-                _requestUiState.value = RequestUiState.Success
-            } else {
-                _requestUiState.value = RequestUiState.Error("Failed to send offer.")
-            }
-        }
-    }
-
-    fun getRequestById(requestId: String) {
-        _selectedRequest.value = _requests.value.find { it.id == requestId }
-    }
-
-    fun resetRequestState() {
-        _requestUiState.value = RequestUiState.Idle
+    fun resetPostRequestState() {
+        _postRequestUiState.value = PostRequestUiState.Idle
     }
 }
