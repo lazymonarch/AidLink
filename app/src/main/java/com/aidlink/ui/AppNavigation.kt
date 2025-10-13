@@ -1,3 +1,5 @@
+// In: main/java/com/aidlink/ui/AppNavigation.kt
+
 package com.aidlink.ui
 
 import androidx.compose.foundation.layout.padding
@@ -7,7 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,13 +25,14 @@ import com.aidlink.viewmodel.ChatViewModel
 import com.aidlink.viewmodel.HomeViewModel
 import com.aidlink.viewmodel.MyActivityViewModel
 import com.aidlink.viewmodel.ProfileViewModel
+
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
-    val authViewModel: AuthViewModel = viewModel()
-    val homeViewModel: HomeViewModel = viewModel()
-    val myActivityViewModel: MyActivityViewModel = viewModel()
-    val chatViewModel: ChatViewModel = viewModel()
+    val authViewModel: AuthViewModel = hiltViewModel()
+    val homeViewModel: HomeViewModel = hiltViewModel()
+    val myActivityViewModel: MyActivityViewModel = hiltViewModel()
+    val chatViewModel: ChatViewModel = hiltViewModel()
 
     val bottomBarRoutes = setOf("home", "activity", "chats", "profile")
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -48,7 +51,7 @@ fun AppNavigation() {
             startDestination = "login",
             modifier = Modifier.padding(innerPadding)
         ) {
-            // --- Authentication Flow (Simplified) ---
+            // --- Authentication Flow ---
             composable("login") {
                 LoginScreen(
                     authViewModel = authViewModel,
@@ -105,7 +108,6 @@ fun AppNavigation() {
                 )
             }
 
-            // --- UPDATED 'chats' ROUTE ---
             composable("chats") {
                 ChatsListScreen(
                     chatViewModel = chatViewModel,
@@ -116,7 +118,8 @@ fun AppNavigation() {
             }
 
             composable("profile") {
-                val profileViewModel: ProfileViewModel = viewModel()
+                // ✅ FIXED: Use hiltViewModel() here as well
+                val profileViewModel: ProfileViewModel = hiltViewModel()
                 val isLoggedOut by profileViewModel.isLoggedOut.collectAsState()
                 LaunchedEffect(isLoggedOut) {
                     if (isLoggedOut) {
@@ -148,7 +151,6 @@ fun AppNavigation() {
                 }
             }
 
-            // --- NEW 'chat' ROUTE ---
             composable(
                 route = "chat/{chatId}/{userName}",
                 arguments = listOf(

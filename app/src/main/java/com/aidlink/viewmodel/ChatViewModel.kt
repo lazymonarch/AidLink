@@ -17,8 +17,8 @@ class ChatViewModel @Inject constructor(
 ) : ViewModel() {
 
     val chats: StateFlow<List<Chat>> = repository.getAuthStateFlow()
-        .flatMapLatest { isLoggedIn ->
-            if (isLoggedIn) {
+        .flatMapLatest { user -> // Renamed from isLoggedIn for clarity
+            if (user != null) { // The check is now for nullness
                 repository.getChats()
             } else {
                 flowOf(emptyList())
@@ -52,13 +52,13 @@ class ChatViewModel @Inject constructor(
 
     fun markJobAsFinished(request: HelpRequest) {
         viewModelScope.launch {
-            repository.requestAction(request.id, "mark_complete")
+            repository.enqueueRequestAction(request.id, "mark_complete")
         }
     }
 
     fun confirmCompletion(request: HelpRequest) {
         viewModelScope.launch {
-            repository.requestAction(request.id, "confirm_complete")
+            repository.enqueueRequestAction(request.id, "confirm_complete")
         }
     }
 

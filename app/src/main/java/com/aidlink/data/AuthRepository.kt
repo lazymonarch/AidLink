@@ -1,3 +1,4 @@
+
 package com.aidlink.data
 
 import android.app.Activity
@@ -6,35 +7,29 @@ import com.aidlink.model.Chat
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.Message
 import com.aidlink.model.UserProfile
-import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
-import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.firestore
 import com.google.firebase.firestore.ktx.toObject
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
+import com.google.firebase.auth.FirebaseUser
 
 class AuthRepository(
     private val auth: FirebaseAuth,
     private val db: FirebaseFirestore,
 ) {
     private val tag = "AuthRepository"
-
-    // --- NEW: Auth State Flow ---
-    // This function is the key to fixing the startup crash.
-    // It provides a continuous stream of the user's login status.
-    fun getAuthStateFlow(): Flow<Boolean> = callbackFlow {
+    fun getAuthStateFlow(): Flow<FirebaseUser?> = callbackFlow {
         val listener = FirebaseAuth.AuthStateListener { auth ->
-            trySend(auth.currentUser != null)
+            trySend(auth.currentUser)
         }
         auth.addAuthStateListener(listener)
         awaitClose { auth.removeAuthStateListener(listener) }
@@ -90,6 +85,7 @@ class AuthRepository(
 
     suspend fun getUserProfileOnce(uid: String): UserProfile? {
         return try {
+            // ✅ FIXED: Using the modern KTX toObject()
             db.collection("users").document(uid).get().await().toObject<UserProfile>()
         } catch (e: Exception) {
             Log.e(tag, "Error fetching user profile", e)
@@ -104,22 +100,10 @@ class AuthRepository(
                     close(error)
                     return@addSnapshotListener
                 }
+                // ✅ FIXED: Using the modern KTX toObject()
                 trySend(snapshot?.toObject<UserProfile>())
             }
         awaitClose { listener.remove() }
-    }
-
-    suspend fun requestAction(requestId: String, action: String, extraData: Map<String, Any> = emptyMap()): Boolean {
-        return try {
-            val dataToUpdate = mutableMapOf<String, Any>("action" to action)
-            dataToUpdate.putAll(extraData)
-            dataToUpdate["lastActionTimestamp"] = FieldValue.serverTimestamp()
-            db.collection("requests").document(requestId).update(dataToUpdate).await()
-            true
-        } catch (e: Exception) {
-            Log.e(tag, "Error requesting action '$action'", e)
-            false
-        }
     }
 
     suspend fun createRequest(request: HelpRequest): Boolean {
@@ -141,6 +125,7 @@ class AuthRepository(
                     close(error)
                     return@addSnapshotListener
                 }
+                // ✅ FIXED: Using the modern KTX toObject()
                 val requests = snapshots?.map { it.toObject<HelpRequest>().copy(id = it.id) }
                 trySend(requests ?: emptyList())
             }
@@ -150,6 +135,7 @@ class AuthRepository(
     suspend fun getRequestById(requestId: String): HelpRequest? {
         return try {
             val document = db.collection("requests").document(requestId).get().await()
+            // ✅ FIXED: Using the modern KTX toObject()
             document.toObject<HelpRequest>()?.copy(id = document.id)
         } catch (e: Exception) {
             Log.e(tag, "Error fetching request by ID", e)
@@ -157,24 +143,24 @@ class AuthRepository(
         }
     }
 
-    fun getMyActivityRequests(): Flow<List<HelpRequest>> = callbackFlow {
-        val userId = getCurrentUser()?.uid
-        if (userId == null) {
-            trySend(emptyList())
-            close()
-            return@callbackFlow
-        }
-
+    fun getMyActivityRequests(userId: String): Flow<List<HelpRequest>> = callbackFlow {
         val listener = db.collection("requests")
-            .whereIn("status", listOf("pending", "in_progress", "completed", "pending_completion"))
+            // This query gets all documents where the user is either the requester OR the responder.
+            .whereIn(
+                "status",
+                listOf("pending", "in_progress", "completed", "pending_completion")
+            )
             .addSnapshotListener { snapshots, error ->
                 if (error != null) {
                     close(error)
                     return@addSnapshotListener
                 }
                 val allRequests = snapshots?.mapNotNull { it.toObject<HelpRequest>().copy(id = it.id) } ?: emptyList()
+
+                // The filtering logic is now simpler and more robust
                 val myRequests = allRequests.filter { it.userId == userId || it.responderId == userId }
                     .sortedByDescending { it.timestamp?.seconds ?: 0L }
+
                 trySend(myRequests)
             }
         awaitClose { listener.remove() }
@@ -209,6 +195,7 @@ class AuthRepository(
                     close(error)
                     return@addSnapshotListener
                 }
+                // ✅ FIXED: Using the modern KTX toObject()
                 val messages = snapshots?.mapNotNull { it.toObject<Message>() }
                 trySend(messages ?: emptyList())
             }
@@ -233,26 +220,28 @@ class AuthRepository(
         }
     }
 
-    suspend fun enqueueRequestAction(requestId: String, actionType: String): Boolean {
+    // ✅ FIXED: Removed the duplicate function
+    suspend fun enqueueRequestAction(requestId: String, actionType: String, extraData: Map<String, Any> = emptyMap()): Boolean {
         return try {
-            val uid = Firebase.auth.currentUser?.uid ?: return false
-            val action = mapOf(
+            val uid = auth.currentUser?.uid ?: return false
+            val action = mutableMapOf<String, Any>(
                 "type" to actionType,
                 "createdBy" to uid,
                 "createdAt" to FieldValue.serverTimestamp()
             )
-            Firebase.firestore.collection("requests")
+            action.putAll(extraData)
+
+            db.collection("requests")
                 .document(requestId)
                 .collection("actions")
                 .add(action)
                 .await()
             true
         } catch (e: Exception) {
-            Log.e("AuthRepository", "Failed to enqueue action", e)
+            Log.e("AuthRepository", "Failed to enqueue action '$actionType' for request $requestId", e)
             false
         }
     }
-
 
     fun signOut() {
         auth.signOut()

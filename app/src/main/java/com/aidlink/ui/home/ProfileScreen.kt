@@ -2,6 +2,7 @@ package com.aidlink.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,6 +32,8 @@ import com.aidlink.model.UserProfile
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.ProfileViewModel
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.runtime.remember
 import com.google.firebase.Timestamp
 import java.util.concurrent.TimeUnit
 
@@ -88,7 +91,7 @@ fun ProfileScreen(
                             .padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
                     )
                 }
-                items(reviews) { review ->
+                items(items = reviews, key = { it.reviewerId }) { review ->
                     ReviewCard(review = review, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 }
                 item {
@@ -131,7 +134,11 @@ private fun UserInfoSection(userProfile: UserProfile) {
     Spacer(modifier = Modifier.height(4.dp))
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clickable { /* TODO: Navigate to Edit Profile */ }
+        modifier = Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = rememberRipple(bounded = false), // unbounded for text
+            onClick = { /* TODO: Navigate to Edit Profile */ }
+        )
     ) {
         Icon(Icons.Default.Edit, contentDescription = "Edit Profile", tint = Color.Gray, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(4.dp))
@@ -234,7 +241,11 @@ private fun ActionItem(icon: ImageVector, text: String, color: Color = Color.Whi
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = rememberRipple(bounded = true),
+                onClick = onClick
+            )
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

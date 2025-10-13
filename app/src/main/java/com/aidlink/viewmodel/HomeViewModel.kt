@@ -29,8 +29,8 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     val requests: StateFlow<List<HelpRequest>> = repository.getAuthStateFlow()
-        .flatMapLatest { isLoggedIn ->
-            if (isLoggedIn) {
+        .flatMapLatest { user -> // Renamed from isLoggedIn for clarity
+            if (user != null) { // The check is now for nullness
                 repository.getOpenHelpRequests()
             } else {
                 flowOf(emptyList())
@@ -59,7 +59,7 @@ class HomeViewModel @Inject constructor(
                 return@launch
             }
             val data = mapOf("responderId" to currentUser.uid, "responderName" to userProfile.name)
-            val success = repository.requestAction(requestId, "respond", data)
+            val success = repository.enqueueRequestAction(requestId, "respond", data)
             _respondUiState.value = if (success) RespondUiState.Success else RespondUiState.Error("Failed to send offer.")
         }
     }

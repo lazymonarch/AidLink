@@ -14,10 +14,9 @@ class ProfileViewModel @Inject constructor(
 ) : ViewModel() {
 
     val userProfile: StateFlow<UserProfile?> = repository.getAuthStateFlow()
-        .flatMapLatest { isLoggedIn ->
-            val uid = repository.getCurrentUser()?.uid
-            if (isLoggedIn && uid != null) {
-                repository.getUserProfile(uid)
+        .flatMapLatest { user ->
+            if (user != null) {
+                repository.getUserProfile(user.uid)
             } else {
                 flowOf(null)
             }

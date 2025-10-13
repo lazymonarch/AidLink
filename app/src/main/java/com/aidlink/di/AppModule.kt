@@ -2,6 +2,7 @@ package com.aidlink.di
 
 import com.aidlink.data.AuthRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.BuildConfig
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
 import dagger.Provides
@@ -13,13 +14,28 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
-    @Provides
-    @Singleton
-    fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
+    // ✅ Use this IP for the Android Emulator
+    private const val EMULATOR_HOST = "192.168.1.6"
 
     @Provides
     @Singleton
-    fun provideFirebaseFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+    fun provideFirebaseAuth(): FirebaseAuth {
+        val auth = FirebaseAuth.getInstance()
+        if (BuildConfig.DEBUG) {
+            auth.useEmulator(EMULATOR_HOST, 9099)
+        }
+        return auth
+    }
+
+    @Provides
+    @Singleton
+    fun provideFirebaseFirestore(): FirebaseFirestore {
+        val db = FirebaseFirestore.getInstance()
+        if (BuildConfig.DEBUG) {
+            db.useEmulator(EMULATOR_HOST, 8080)
+        }
+        return db
+    }
 
     @Provides
     @Singleton

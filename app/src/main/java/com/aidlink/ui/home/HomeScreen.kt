@@ -76,7 +76,8 @@ fun HomeScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(requests) { request ->
+                    // ✅ FIXED: Added a unique and stable key for each item.
+                    items(items = requests, key = { it.id }) { request ->
                         HelpRequestCard(
                             request = request,
                             onClick = { onRequestClicked(request.id) }

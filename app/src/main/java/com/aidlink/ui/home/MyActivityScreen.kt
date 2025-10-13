@@ -3,6 +3,7 @@ package com.aidlink.ui.home
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +12,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -55,8 +57,6 @@ fun MyActivityScreen(
             onDismiss = { requestInDialog = null },
             onAccept = {
                 myActivityViewModel.onAcceptOffer(requestInDialog!!)
-                // After accepting, a chat is created on the backend.
-                // We navigate the user to the chat screen.
                 val otherUserName = requestInDialog!!.responderName ?: "Helper"
                 onNavigateToChat(requestInDialog!!.id, otherUserName)
                 requestInDialog = null
@@ -127,22 +127,18 @@ fun MyActivityScreen(
                     EmptyState(message = emptyMessage)
                 } else {
                     LazyColumn(contentPadding = PaddingValues(16.dp)) {
-                        items(listToShow) { request ->
+                        items(items = listToShow, key = { it.id }) { request ->
                             ActivityItemRow(
                                 request = request,
                                 onClick = {
-                                    // Clicking an "in_progress" or "completed" request should go to chat
                                     if (request.status == "in_progress" || request.status == "completed" || request.status == "pending_completion") {
                                         val otherUserName = if (request.userId == currentUser?.uid) {
                                             request.responderName ?: "Chat"
                                         } else {
-                                            // To get the requester's name, we'd ideally have it in the HelpRequest model.
-                                            // For now, we'll just say "Requester".
                                             "Requester"
                                         }
                                         onNavigateToChat(request.id, otherUserName)
                                     } else if (request.userId == currentUser?.uid) {
-                                        // Only the requester can manage their "open" or "pending" request.
                                         requestInDialog = request
                                     }
                                 }
@@ -211,7 +207,11 @@ fun ActivityItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
-            .clickable(onClick = onClick),
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = rememberRipple(bounded = true),
+                onClick = onClick
+            ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
     ) {
