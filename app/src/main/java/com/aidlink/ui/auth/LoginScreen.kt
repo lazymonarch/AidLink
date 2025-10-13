@@ -21,13 +21,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.R
+import com.aidlink.ui.common.SphereLoader
 import com.aidlink.ui.theme.AidLinkTheme
+import com.aidlink.ui.theme.Montserrat
 import com.aidlink.viewmodel.AuthUiState
 import com.aidlink.viewmodel.AuthViewModel
-import com.aidlink.ui.theme.Montserrat
-import com.aidlink.ui.common.SphereLoader
-import androidx.lifecycle.viewmodel.compose.viewModel
 
 @SuppressLint("ContextCastToActivity")
 @Composable
@@ -36,12 +36,13 @@ fun LoginScreen(
     onNavigateToOtp: (String) -> Unit
 ) {
     val uiState by authViewModel.uiState.collectAsState()
-    var phoneNumber by remember { mutableStateOf("") }
+    val phoneNumber by authViewModel.phoneNumber.collectAsState()
     val activity = LocalContext.current as? Activity
 
     LaunchedEffect(key1 = uiState) {
         if (uiState is AuthUiState.OtpSent) {
             onNavigateToOtp((uiState as AuthUiState.OtpSent).verificationId)
+            authViewModel.resetState()
         }
     }
 
@@ -82,7 +83,7 @@ fun LoginScreen(
 
             OutlinedTextField(
                 value = phoneNumber,
-                onValueChange = { phoneNumber = it },
+                onValueChange = { authViewModel.onPhoneNumberChanged(it) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -109,7 +110,7 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             if (activity != null) {
-                                authViewModel.sendOtp("+91$phoneNumber", activity)
+                                authViewModel.sendOtp(activity)
                             }
                         },
                         modifier = Modifier.fillMaxSize(),
@@ -144,8 +145,6 @@ fun LoginScreen(
 @Composable
 fun LoginScreenPreviewDark() {
     AidLinkTheme(darkTheme = true) {
-        // FIXED: We no longer pass a ViewModel to the preview.
-        // The preview renders a static version of the UI.
         LoginScreen(authViewModel = viewModel(), onNavigateToOtp = {})
     }
 }

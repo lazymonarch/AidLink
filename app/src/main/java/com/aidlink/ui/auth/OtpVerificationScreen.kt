@@ -19,11 +19,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.ui.common.SphereLoader
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.AuthUiState
 import com.aidlink.viewmodel.AuthViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,7 +38,7 @@ fun OtpVerificationScreen(
     val uiState by authViewModel.uiState.collectAsState()
 
     LaunchedEffect(key1 = uiState) {
-        when (uiState) {
+        when (val state = uiState) {
             is AuthUiState.AuthSuccessExistingUser -> {
                 onNavigateToHome()
                 authViewModel.resetState()
@@ -47,7 +47,10 @@ fun OtpVerificationScreen(
                 onNavigateToProfileSetup()
                 authViewModel.resetState()
             }
-            else -> { /* Do nothing */ }
+            is AuthUiState.Error -> {
+                otpValue = ""
+            }
+            else -> { /* Do nothing for other states */ }
         }
     }
 
@@ -79,6 +82,7 @@ fun OtpVerificationScreen(
                     .padding(innerPadding)
                     .padding(horizontal = 24.dp)
             ) {
+                // --- Top part of the screen (unchanged) ---
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -116,37 +120,47 @@ fun OtpVerificationScreen(
                     }
                 }
 
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.BottomCenter)
                         .padding(vertical = 16.dp),
-                    contentAlignment = Alignment.Center
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp) // Adds space between error and button
                 ) {
+                    // Error message will appear here, above the button
                     if (uiState is AuthUiState.Error) {
                         Text(
                             text = (uiState as AuthUiState.Error).message,
                             color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.height(24.dp) // Reserve space for the message
                         )
+                    } else {
+                        // Keep the layout consistent by adding a spacer when there's no error
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
 
-                    if (uiState !is AuthUiState.Loading &&
-                        uiState !is AuthUiState.AuthSuccessExistingUser &&
-                        uiState !is AuthUiState.AuthSuccessNewUser
+                    // The Verify button remains here
+                    Button(
+                        onClick = { authViewModel.verifyOtp(verificationId, otpValue) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color.Black
+                        ),
+                        enabled = otpValue.length == 6 && uiState !is AuthUiState.Loading
                     ) {
-                        Button(
-                            onClick = { authViewModel.verifyOtp(verificationId, otpValue) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
-                            shape = RoundedCornerShape(50),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White,
-                                contentColor = Color.Black
-                            ),
-                            enabled = otpValue.length == 6
-                        ) {
+                        if (uiState is AuthUiState.Loading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color.Black,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
                             Text("Verify", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -168,6 +182,7 @@ fun OtpVerificationScreen(
     }
 }
 
+// --- OtpInputField and Preview functions remain unchanged ---
 @Composable
 private fun OtpInputField(
     modifier: Modifier = Modifier,
@@ -218,7 +233,6 @@ private fun OtpInputField(
 @Composable
 fun OtpVerificationScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        // FIXED: We no longer pass a ViewModel to the preview.
         OtpVerificationScreen(
             authViewModel = viewModel(),
             verificationId = "test_id",

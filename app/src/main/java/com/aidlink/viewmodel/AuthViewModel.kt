@@ -8,6 +8,7 @@ import com.aidlink.model.UserProfile
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,15 +32,31 @@ class AuthViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
-    fun sendOtp(phoneNumber: String, activity: Activity) {
+    private val _phoneNumber = MutableStateFlow("")
+    val phoneNumber: StateFlow<String> = _phoneNumber.asStateFlow()
+
+    fun onPhoneNumberChanged(newNumber: String) {
+        _phoneNumber.value = newNumber
+    }
+
+    private fun setTemporaryError(message: String) {
+        _uiState.value = AuthUiState.Error(message)
+        viewModelScope.launch {
+            delay(3000L)
+            _uiState.value = AuthUiState.Idle
+        }
+    }
+
+    fun sendOtp(activity: Activity) {
         _uiState.value = AuthUiState.Loading
+        val fullPhoneNumber = "+91${_phoneNumber.value}"
         val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
             override fun onVerificationCompleted(credential: PhoneAuthCredential) {
                 signIn(credential)
             }
 
             override fun onVerificationFailed(e: com.google.firebase.FirebaseException) {
-                _uiState.value = AuthUiState.Error(e.message ?: "An unknown error occurred.")
+                setTemporaryError(e.message ?: "An unknown error occurred.")
             }
 
             override fun onCodeSent(
@@ -49,7 +66,7 @@ class AuthViewModel @Inject constructor(
                 _uiState.value = AuthUiState.OtpSent(verificationId)
             }
         }
-        repository.sendVerificationCode(phoneNumber, activity, callbacks)
+        repository.sendVerificationCode(fullPhoneNumber, activity, callbacks)
     }
 
     fun verifyOtp(verificationId: String, otp: String) {
@@ -59,7 +76,7 @@ class AuthViewModel @Inject constructor(
                 val credential = PhoneAuthProvider.getCredential(verificationId, otp)
                 signIn(credential)
             } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error("Invalid OTP. Please try again.")
+                setTemporaryError("Invalid OTP. Please try again.")
             }
         }
     }
@@ -74,7 +91,7 @@ class AuthViewModel @Inject constructor(
                     _uiState.value = AuthUiState.AuthSuccessNewUser
                 }
             } else {
-                _uiState.value = AuthUiState.Error("Authentication failed.")
+                setTemporaryError("Authentication failed.")
             }
         }
     }
@@ -94,7 +111,7 @@ class AuthViewModel @Inject constructor(
             if (success) {
                 _uiState.value = AuthUiState.AuthSuccessExistingUser
             } else {
-                _uiState.value = AuthUiState.Error("Failed to save profile.")
+                setTemporaryError("Failed to save profile.")
             }
         }
     }

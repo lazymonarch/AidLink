@@ -118,12 +118,16 @@ fun AppNavigation() {
             }
 
             composable("profile") {
-                // ✅ FIXED: Use hiltViewModel() here as well
                 val profileViewModel: ProfileViewModel = hiltViewModel()
                 val isLoggedOut by profileViewModel.isLoggedOut.collectAsState()
                 LaunchedEffect(isLoggedOut) {
                     if (isLoggedOut) {
-                        navController.navigate("login") { popUpTo(0) { inclusive = true } }
+                        navController.navigate("login") {
+                            popUpTo(navController.graph.startDestinationId) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
                     }
                 }
                 ProfileScreen(profileViewModel = profileViewModel)

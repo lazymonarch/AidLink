@@ -117,15 +117,25 @@ class AuthRepository(
     }
 
     fun getOpenHelpRequests(): Flow<List<HelpRequest>> = callbackFlow {
+        val currentUserId = auth.currentUser?.uid
+        if (currentUserId == null) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
         val listener = db.collection("requests")
             .whereEqualTo("status", "open")
+            .whereNotEqualTo("userId", currentUserId)
             .orderBy("timestamp", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshots, error ->
                 if (error != null) {
+                    if (error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.FAILED_PRECONDITION) {
+                        Log.e(tag, "Firestore index missing. Please create it in the Firebase console.", error)
+                    }
                     close(error)
                     return@addSnapshotListener
                 }
-                // ✅ FIXED: Using the modern KTX toObject()
                 val requests = snapshots?.map { it.toObject<HelpRequest>().copy(id = it.id) }
                 trySend(requests ?: emptyList())
             }
@@ -145,10 +155,9 @@ class AuthRepository(
 
     fun getMyActivityRequests(userId: String): Flow<List<HelpRequest>> = callbackFlow {
         val listener = db.collection("requests")
-            // This query gets all documents where the user is either the requester OR the responder.
             .whereIn(
                 "status",
-                listOf("pending", "in_progress", "completed", "pending_completion")
+                listOf("open", "pending", "in_progress", "completed", "pending_completion")
             )
             .addSnapshotListener { snapshots, error ->
                 if (error != null) {
@@ -157,7 +166,6 @@ class AuthRepository(
                 }
                 val allRequests = snapshots?.mapNotNull { it.toObject<HelpRequest>().copy(id = it.id) } ?: emptyList()
 
-                // The filtering logic is now simpler and more robust
                 val myRequests = allRequests.filter { it.userId == userId || it.responderId == userId }
                     .sortedByDescending { it.timestamp?.seconds ?: 0L }
 
@@ -165,6 +173,7 @@ class AuthRepository(
             }
         awaitClose { listener.remove() }
     }
+
 
     fun getChats(): Flow<List<Chat>> = callbackFlow {
         val userId = getCurrentUser()?.uid
