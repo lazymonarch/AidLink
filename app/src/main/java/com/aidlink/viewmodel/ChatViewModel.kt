@@ -1,5 +1,8 @@
+// In: main/java/com/aidlink/viewmodel/ChatViewModel.kt
+
 package com.aidlink.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
@@ -13,63 +16,68 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
-    private val repository: AuthRepository
+    private val repository: AuthRepository,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
+    private val chatId: StateFlow<String> = savedStateHandle.getStateFlow("chatId", "")
     val chats: StateFlow<List<Chat>> = repository.getAuthStateFlow()
-        .flatMapLatest { user -> // Renamed from isLoggedIn for clarity
-            if (user != null) { // The check is now for nullness
-                repository.getChats()
-            } else {
-                flowOf(emptyList())
-            }
+        .flatMapLatest { user ->
+            if (user != null) repository.getChats() else flowOf(emptyList())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _messages = MutableStateFlow<List<Message>>(emptyList())
-    val messages: StateFlow<List<Message>> = _messages.asStateFlow()
+    val messages: StateFlow<List<Message>> = chatId.flatMapLatest { id ->
+        if (id.isNotBlank()) {
+            repository.getMessages(id)
+        } else {
+            flowOf(emptyList())
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _currentRequest = MutableStateFlow<HelpRequest?>(null)
     val currentRequest: StateFlow<HelpRequest?> = _currentRequest.asStateFlow()
 
-    fun fetchMessages(chatId: String) {
+    init {
         viewModelScope.launch {
-            repository.getMessages(chatId).collect { messageList ->
-                _messages.value = messageList
+            chatId.collect { id ->
+                if (id.isNotBlank()) {
+                    getRequestDetails(id)
+                }
             }
         }
     }
 
-    fun sendMessage(chatId: String, text: String) {
-        val senderId = repository.getCurrentUser()?.uid
-        if (senderId == null || text.isBlank()) return
+    fun sendMessage(text: String) {
+        val currentChatId = chatId.value
+        if (currentChatId.isBlank() || text.isBlank()) return
 
-        val message = Message(senderId = senderId, text = text)
         viewModelScope.launch {
-            repository.sendMessage(chatId, message)
+            repository.sendMessage(currentChatId, text)
         }
     }
 
-    fun markJobAsFinished(request: HelpRequest) {
+    fun markJobAsFinished() {
+        val request = _currentRequest.value ?: return
         viewModelScope.launch {
-            repository.enqueueRequestAction(request.id, "mark_complete")
+            repository.markJobAsComplete(request.id)
         }
     }
 
-    fun confirmCompletion(request: HelpRequest) {
+    fun confirmCompletion() {
+        val request = _currentRequest.value ?: return
         viewModelScope.launch {
-            repository.enqueueRequestAction(request.id, "confirm_complete")
+            repository.confirmCompletion(request.id)
         }
     }
 
-    fun getRequestDetails(requestId: String) {
+    private fun getRequestDetails(requestId: String) {
         viewModelScope.launch {
             _currentRequest.value = repository.getRequestById(requestId)
         }
     }
 
     fun clearChatScreenState() {
-        _messages.value = emptyList()
         _currentRequest.value = null
     }
 }

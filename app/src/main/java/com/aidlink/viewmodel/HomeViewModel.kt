@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
 import com.aidlink.model.HelpRequest
+import com.aidlink.model.Offer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -29,8 +30,8 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     val requests: StateFlow<List<HelpRequest>> = repository.getAuthStateFlow()
-        .flatMapLatest { user -> // Renamed from isLoggedIn for clarity
-            if (user != null) { // The check is now for nullness
+        .flatMapLatest { user ->
+            if (user != null) {
                 repository.getOpenHelpRequests()
             } else {
                 flowOf(emptyList())
@@ -38,6 +39,7 @@ class HomeViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // ✅ FIXED: Moved selectedRequest before offers to ensure it's initialized first.
     private val _selectedRequest = MutableStateFlow<HelpRequest?>(null)
     val selectedRequest: StateFlow<HelpRequest?> = _selectedRequest.asStateFlow()
 
@@ -47,22 +49,22 @@ class HomeViewModel @Inject constructor(
     private val _respondUiState = MutableStateFlow<RespondUiState>(RespondUiState.Idle)
     val respondUiState: StateFlow<RespondUiState> = _respondUiState.asStateFlow()
 
-    fun onRespondToRequest(requestId: String) {
+    val offers: StateFlow<List<Offer>> = selectedRequest
+        .filterNotNull()
+        .flatMapLatest { request ->
+            repository.getOffers(request.id)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun onMakeOffer(requestId: String) {
         viewModelScope.launch {
             _respondUiState.value = RespondUiState.Loading
-            val currentUser = repository.getCurrentUser() ?: run {
-                _respondUiState.value = RespondUiState.Error("You must be logged in.")
-                return@launch
-            }
-            val userProfile = repository.getUserProfileOnce(currentUser.uid) ?: run {
-                _respondUiState.value = RespondUiState.Error("Could not find your profile.")
-                return@launch
-            }
-            val data = mapOf("responderId" to currentUser.uid, "responderName" to userProfile.name)
-            val success = repository.enqueueRequestAction(requestId, "respond", data)
+            val success = repository.makeOffer(requestId)
             _respondUiState.value = if (success) RespondUiState.Success else RespondUiState.Error("Failed to send offer.")
         }
     }
+
+    // ❌ REMOVED: This function is obsolete and has been replaced by onMakeOffer.
+    // fun onRespondToRequest(requestId: String) { ... }
 
     fun resetRespondState() {
         _respondUiState.value = RespondUiState.Idle
@@ -81,8 +83,13 @@ class HomeViewModel @Inject constructor(
                 _postRequestUiState.value = PostRequestUiState.Error("You must be logged in.")
                 return@launch
             }
+            val userProfile = repository.getUserProfileOnce(currentUser.uid) ?: run {
+                _postRequestUiState.value = PostRequestUiState.Error("Could not load your profile to post.")
+                return@launch
+            }
             val newRequest = HelpRequest(
                 userId = currentUser.uid,
+                userName = userProfile.name,
                 title = title,
                 description = description,
                 category = category,

@@ -45,24 +45,23 @@ class MyActivityViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun onAcceptOffer(request: HelpRequest) {
+    fun onAcceptOffer(requestId: String, helperId: String) {
         viewModelScope.launch {
-            repository.enqueueRequestAction(request.id, "accept")
-        }
-    }
-
-    fun onDeclineOffer(request: HelpRequest) {
-        viewModelScope.launch {
-            repository.enqueueRequestAction(request.id, "decline")
+            repository.acceptOffer(requestId, helperId)
         }
     }
 
     fun onDeleteRequest(requestId: String) { /* Not yet implemented */ }
-    fun onCancelRequest(requestId: String) { /* Not yet implemented */ }
+
+    fun onCancelRequest(requestId: String) {
+        viewModelScope.launch {
+            repository.cancelRequest(requestId)
+        }
+    }
 
     fun onConfirmCompletion(request: HelpRequest) {
         viewModelScope.launch {
-            repository.enqueueRequestAction(request.id, "confirm_complete")
+            repository.confirmCompletion(request.id)
         }
     }
 }

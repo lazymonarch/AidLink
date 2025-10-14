@@ -14,8 +14,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
-    // ✅ Use this IP for the Android Emulator
-    private const val EMULATOR_HOST = "192.168.1.6"
+    private const val EMULATOR_HOST = "192.168.1.3"
 
     @Provides
     @Singleton

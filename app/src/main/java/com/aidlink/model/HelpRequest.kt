@@ -10,19 +10,20 @@ enum class RequestType {
 data class HelpRequest(
     val id: String = "",
     val userId: String = "",
+    val userName: String = "",
     val title: String = "",
     val description: String = "",
     val category: String = "",
     val location: String = "",
     val type: RequestType = RequestType.FEE,
     val status: String = "open",
+    val offerCount: Int = 0,
 
     @ServerTimestamp
     val timestamp: Timestamp? = null,
     val responderId: String? = null,
     val responderName: String? = null,
 
-    // --- Fields for backend actions ---
     val action: String? = null,
     @ServerTimestamp
     val lastActionTimestamp: Timestamp? = null

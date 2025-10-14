@@ -18,6 +18,9 @@ import com.aidlink.model.HelpRequest
 import com.aidlink.model.RequestType
 import com.aidlink.viewmodel.HomeViewModel
 import com.aidlink.viewmodel.RespondUiState
+import com.aidlink.model.Offer
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,7 +29,9 @@ fun RequestDetailScreen(
     onBackClicked: () -> Unit
 ) {
     val request by homeViewModel.selectedRequest.collectAsState()
+    val offers by homeViewModel.offers.collectAsState()
     val uiState by homeViewModel.respondUiState.collectAsState()
+    val currentUser = Firebase.auth.currentUser
 
     DisposableEffect(Unit) {
         onDispose {
@@ -44,30 +49,19 @@ fun RequestDetailScreen(
             )
         },
         bottomBar = {
-            if (request != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    when (uiState) {
-                        is RespondUiState.Loading -> CircularProgressIndicator(color = Color.White)
-                        is RespondUiState.Success -> Text("Offer Sent!", color = Color.Green, fontWeight = FontWeight.Bold)
-                        is RespondUiState.Error -> Text((uiState as RespondUiState.Error).message, color = MaterialTheme.colorScheme.error)
-                        is RespondUiState.Idle -> {
-                            Button(
-                                onClick = { request?.id?.let { homeViewModel.onRespondToRequest(it) } },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp),
-                                shape = RoundedCornerShape(50),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
-                            ) {
-                                Text("I Can Help", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
+            if (request != null && currentUser != null) {
+                // ✅ UI LOGIC: Show different bottom bar based on user role.
+                if (request!!.userId == currentUser.uid) {
+                    // This is the requester's view.
+                    RequesterBottomBar(offers = offers, onAccept = { /* Handled in MyActivityScreen */ })
+                } else {
+                    // This is a potential helper's view.
+                    val hasAlreadyOffered = offers.any { it.helperId == currentUser.uid }
+                    HelperBottomBar(
+                        uiState = uiState,
+                        hasAlreadyOffered = hasAlreadyOffered,
+                        onMakeOffer = { homeViewModel.onMakeOffer(request!!.id) }
+                    )
                 }
             }
         }
@@ -78,6 +72,58 @@ fun RequestDetailScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
+        }
+    }
+}
+
+@Composable
+private fun HelperBottomBar(
+    uiState: RespondUiState,
+    hasAlreadyOffered: Boolean,
+    onMakeOffer: () -> Unit
+) {
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            hasAlreadyOffered -> {
+                Text("Offer Sent!", color = Color.Green, fontWeight = FontWeight.Bold)
+            }
+            uiState is RespondUiState.Loading -> CircularProgressIndicator(color = Color.White)
+            uiState is RespondUiState.Success -> Text("Offer Sent!", color = Color.Green, fontWeight = FontWeight.Bold)
+            uiState is RespondUiState.Error -> Text(uiState.message, color = MaterialTheme.colorScheme.error)
+            else -> {
+                Button(
+                    onClick = onMakeOffer,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
+                ) {
+                    Text("I Can Help", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RequesterBottomBar(offers: List<Offer>, onAccept: (Offer) -> Unit) {
+    Surface(color = Color.Black, tonalElevation = 4.dp) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = if (offers.isEmpty()) "No offers yet." else "${offers.size} offer(s) received.",
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "You can manage offers from the 'My Activity' screen.",
+                color = Color.Gray,
+                fontSize = 12.sp
+            )
         }
     }
 }

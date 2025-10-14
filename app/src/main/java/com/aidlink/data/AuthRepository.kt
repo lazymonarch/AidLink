@@ -6,6 +6,7 @@ import android.util.Log
 import com.aidlink.model.Chat
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.Message
+import com.aidlink.model.Offer
 import com.aidlink.model.UserProfile
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
@@ -36,6 +37,45 @@ class AuthRepository(
     }
 
     fun getCurrentUser() = auth.currentUser
+
+    // ✅ NEW: Creates an offer by triggering the "make_offer" backend action.
+    suspend fun makeOffer(requestId: String): Boolean {
+        return enqueueRequestAction(requestId, "make_offer")
+    }
+
+    // ✅ NEW: Accepts a specific offer, passing the chosen helper's ID to the backend.
+    suspend fun acceptOffer(requestId: String, helperId: String): Boolean {
+        val data = mapOf("helperId" to helperId)
+        return enqueueRequestAction(requestId, "accept_offer", data)
+    }
+
+    // ✅ NEW: Gets a real-time stream of offers for a specific request.
+    fun getOffers(requestId: String): Flow<List<Offer>> = callbackFlow {
+        val listener = db.collection("requests").document(requestId).collection("offers")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshots, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val offers = snapshots?.map { doc ->
+                    doc.toObject<Offer>().copy(id = doc.id)
+                } ?: emptyList()
+                trySend(offers)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun markJobAsComplete(requestId: String): Boolean {
+        return enqueueRequestAction(requestId, "mark_complete")
+    }
+
+    suspend fun cancelRequest(requestId: String): Boolean {
+        return enqueueRequestAction(requestId, "cancel_request")
+    }
+    suspend fun confirmCompletion(requestId: String): Boolean {
+        return enqueueRequestAction(requestId, "confirm_complete")
+    }
 
     fun sendVerificationCode(
         phoneNumber: String,
@@ -196,6 +236,18 @@ class AuthRepository(
         awaitClose { listener.remove() }
     }
 
+    fun getChat(chatId: String): Flow<Chat?> = callbackFlow {
+        val listener = db.collection("chats").document(chatId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                trySend(snapshot?.toObject<Chat>())
+            }
+        awaitClose { listener.remove() }
+    }
+
     fun getMessages(chatId: String): Flow<List<Message>> = callbackFlow {
         val listener = db.collection("chats").document(chatId).collection("messages")
             .orderBy("timestamp", Query.Direction.ASCENDING)
@@ -211,15 +263,23 @@ class AuthRepository(
         awaitClose { listener.remove() }
     }
 
-    suspend fun sendMessage(chatId: String, message: Message): Boolean {
+    suspend fun sendMessage(chatId: String, text: String): Boolean {
+        val senderId = getCurrentUser()?.uid ?: return false
         return try {
             val chatRef = db.collection("chats").document(chatId)
             val messageRef = chatRef.collection("messages").document()
+
+            val messageData = mapOf(
+                "senderId" to senderId,
+                "text" to text,
+                "timestamp" to FieldValue.serverTimestamp()
+            )
+
             db.runBatch { batch ->
-                batch.set(messageRef, message)
+                batch.set(messageRef, messageData)
                 batch.update(chatRef, mapOf(
-                    "lastMessage" to message.text,
-                    "lastMessageTimestamp" to message.timestamp
+                    "lastMessage" to text,
+                    "lastMessageTimestamp" to FieldValue.serverTimestamp()
                 ))
             }.await()
             true
@@ -229,8 +289,11 @@ class AuthRepository(
         }
     }
 
-    // ✅ FIXED: Removed the duplicate function
-    suspend fun enqueueRequestAction(requestId: String, actionType: String, extraData: Map<String, Any> = emptyMap()): Boolean {
+    private suspend fun enqueueRequestAction(
+        requestId: String,
+        actionType: String,
+        extraData: Map<String, Any> = emptyMap()
+    ): Boolean {
         return try {
             val uid = auth.currentUser?.uid ?: return false
             val action = mutableMapOf<String, Any>(

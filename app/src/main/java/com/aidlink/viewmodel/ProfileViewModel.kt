@@ -23,11 +23,7 @@ class ProfileViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    private val _isLoggedOut = MutableStateFlow(false)
-    val isLoggedOut: StateFlow<Boolean> = _isLoggedOut.asStateFlow()
-
     fun onLogoutClicked() {
         repository.signOut()
-        _isLoggedOut.value = true
     }
 }

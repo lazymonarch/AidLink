@@ -9,7 +9,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -20,24 +19,35 @@ import com.aidlink.ui.auth.LoginScreen
 import com.aidlink.ui.auth.OtpVerificationScreen
 import com.aidlink.ui.auth.ProfileSetupScreen
 import com.aidlink.ui.home.*
-import com.aidlink.viewmodel.AuthViewModel
-import com.aidlink.viewmodel.ChatViewModel
-import com.aidlink.viewmodel.HomeViewModel
-import com.aidlink.viewmodel.MyActivityViewModel
-import com.aidlink.viewmodel.ProfileViewModel
+import com.aidlink.viewmodel.*
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+    val appNavViewModel: AppNavViewModel = hiltViewModel()
     val authViewModel: AuthViewModel = hiltViewModel()
     val homeViewModel: HomeViewModel = hiltViewModel()
     val myActivityViewModel: MyActivityViewModel = hiltViewModel()
     val chatViewModel: ChatViewModel = hiltViewModel()
+    val profileViewModel: ProfileViewModel = hiltViewModel()
+    val currentUser by appNavViewModel.repository.getAuthStateFlow().collectAsState(initial = Firebase.auth.currentUser)
+
+    LaunchedEffect(currentUser) {
+        if (currentUser == null) {
+            navController.navigate("login") {
+                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
 
     val bottomBarRoutes = setOf("home", "activity", "chats", "profile")
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val shouldShowBottomBar = currentRoute in bottomBarRoutes
+    val shouldShowBottomBar = currentRoute in bottomBarRoutes && currentUser != null
 
     Scaffold(
         bottomBar = {
@@ -48,7 +58,7 @@ fun AppNavigation() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "login",
+            startDestination = if (Firebase.auth.currentUser != null) "home" else "login",
             modifier = Modifier.padding(innerPadding)
         ) {
             // --- Authentication Flow ---
@@ -119,17 +129,6 @@ fun AppNavigation() {
 
             composable("profile") {
                 val profileViewModel: ProfileViewModel = hiltViewModel()
-                val isLoggedOut by profileViewModel.isLoggedOut.collectAsState()
-                LaunchedEffect(isLoggedOut) {
-                    if (isLoggedOut) {
-                        navController.navigate("login") {
-                            popUpTo(navController.graph.startDestinationId) {
-                                inclusive = true
-                            }
-                            launchSingleTop = true
-                        }
-                    }
-                }
                 ProfileScreen(profileViewModel = profileViewModel)
             }
 
@@ -165,11 +164,10 @@ fun AppNavigation() {
                 val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
                 val userName = backStackEntry.arguments?.getString("userName") ?: "Chat"
                 ChatScreen(
-                    chatId = chatId,
                     otherUserName = userName,
                     chatViewModel = chatViewModel,
                     onBackClicked = {
-                        chatViewModel.clearChatScreenState()
+                        chatViewModel.clearChatScreenState() // This now works correctly.
                         navController.popBackStack()
                     }
                 )

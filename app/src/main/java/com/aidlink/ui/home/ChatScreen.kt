@@ -28,7 +28,7 @@ import com.google.firebase.ktx.Firebase
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
-    chatId: String,
+    // The chatId is now passed to the ViewModel via SavedStateHandle, so it's not needed here directly.
     otherUserName: String,
     chatViewModel: ChatViewModel,
     onBackClicked: () -> Unit
@@ -38,11 +38,6 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     var text by remember { mutableStateOf("") }
     val currentUserId = Firebase.auth.currentUser?.uid
-
-    LaunchedEffect(chatId) {
-        chatViewModel.fetchMessages(chatId)
-        chatViewModel.getRequestDetails(chatId)
-    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -62,17 +57,15 @@ fun ChatScreen(
         bottomBar = {
             Column {
                 request?.let { req ->
-                    // Show the "I've Finished" button to the helper.
                     if (req.status == "in_progress" && req.responderId == currentUserId) {
                         HelperActionBar(
-                            onRequestComplete = { chatViewModel.markJobAsFinished(req) }
+                            onRequestComplete = { chatViewModel.markJobAsFinished() }
                         )
                     }
-                    // Show the confirmation bar to the requester.
-                    if (req.status == "pending_approval" && req.userId == currentUserId) {
+                    if (req.status == "pending_completion" && req.userId == currentUserId) {
                         RequesterApprovalBar(
-                            onConfirm = { chatViewModel.confirmCompletion(req) },
-                            onDispute = { /* TODO: Handle dispute logic in the future */ }
+                            onConfirm = { chatViewModel.confirmCompletion() },
+                            onDispute = { /* TODO */ }
                         )
                     }
                 }
@@ -80,7 +73,7 @@ fun ChatScreen(
                     text = text,
                     onTextChange = { text = it },
                     onSendClicked = {
-                        chatViewModel.sendMessage(chatId, text)
+                        chatViewModel.sendMessage(text)
                         text = ""
                     }
                 )

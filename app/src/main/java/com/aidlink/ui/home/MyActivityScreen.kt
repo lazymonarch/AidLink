@@ -2,6 +2,7 @@ package com.aidlink.ui.home
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -9,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -17,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -24,11 +27,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.model.HelpRequest
+import com.aidlink.model.Offer
 import com.aidlink.ui.theme.AidLinkTheme
+import com.aidlink.viewmodel.HomeViewModel
 import com.aidlink.viewmodel.MyActivityViewModel
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
@@ -50,23 +57,24 @@ fun MyActivityScreen(
     val completedRequests by myActivityViewModel.completedRequests.collectAsState()
 
     var requestInDialog by remember { mutableStateOf<HelpRequest?>(null) }
+    var showOffersDialog by remember { mutableStateOf(false) }
 
-    if (requestInDialog != null) {
+    if (showOffersDialog && requestInDialog != null) {
+        OffersListDialog(
+            requestId = requestInDialog!!.id,
+            onDismiss = { showOffersDialog = false },
+            onAcceptOffer = { offer ->
+                myActivityViewModel.onAcceptOffer(requestInDialog!!.id, offer.helperId)
+                showOffersDialog = false
+            }
+        )
+    }
+
+    if (requestInDialog != null && !showOffersDialog) {
         RequestManagementDialog(
             request = requestInDialog!!,
             onDismiss = { requestInDialog = null },
-            onAccept = {
-                myActivityViewModel.onAcceptOffer(requestInDialog!!)
-                val otherUserName = requestInDialog!!.responderName ?: "Helper"
-                onNavigateToChat(requestInDialog!!.id, otherUserName)
-                requestInDialog = null
-            },
-            onDecline = {
-                myActivityViewModel.onDeclineOffer(requestInDialog!!)
-                requestInDialog = null
-            },
             onDelete = {
-                myActivityViewModel.onDeleteRequest(requestInDialog!!.id)
                 requestInDialog = null
             },
             onCancel = {
@@ -130,16 +138,15 @@ fun MyActivityScreen(
                         items(items = listToShow, key = { it.id }) { request ->
                             ActivityItemRow(
                                 request = request,
+                                currentUser = currentUser,
                                 onClick = {
-                                    if (request.status == "in_progress" || request.status == "completed" || request.status == "pending_completion") {
-                                        val otherUserName = if (request.userId == currentUser?.uid) {
-                                            request.responderName ?: "Chat"
-                                        } else {
-                                            "Requester"
-                                        }
-                                        onNavigateToChat(request.id, otherUserName)
-                                    } else if (request.userId == currentUser?.uid) {
+                                    if (request.userId == currentUser?.uid) {
                                         requestInDialog = request
+                                        if (request.status == "open") {
+                                            showOffersDialog = true
+                                        }
+                                    } else if (request.status in listOf("in_progress", "completed", "pending_completion")) {
+                                        onNavigateToChat(request.id, request.userName)
                                     }
                                 }
                             )
@@ -151,13 +158,68 @@ fun MyActivityScreen(
     }
 }
 
+@Composable
+fun OffersListDialog(
+    requestId: String,
+    onDismiss: () -> Unit,
+    onAcceptOffer: (Offer) -> Unit,
+    homeViewModel: HomeViewModel = hiltViewModel()
+) {
+    LaunchedEffect(requestId) {
+        homeViewModel.getRequestById(requestId)
+    }
+    val offers by homeViewModel.offers.collectAsState()
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    "Offers Received",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                if (offers.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                        Text("No offers yet.", color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        items(offers) { offer ->
+                            OfferItemRow(offer = offer, onAccept = { onAcceptOffer(offer) })
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OfferItemRow(offer: Offer, onAccept: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(offer.helperName, color = Color.White, fontWeight = FontWeight.SemiBold)
+            Text(formatTimestamp(offer.createdAt), color = Color.Gray, fontSize = 12.sp)
+        }
+        Button(onClick = onAccept, colors = ButtonDefaults.buttonColors(containerColor = Color.Green)) {
+            Text("Accept", color = Color.Black)
+        }
+    }
+}
+
 
 @Composable
 fun RequestManagementDialog(
     request: HelpRequest,
     onDismiss: () -> Unit,
-    onAccept: () -> Unit,
-    onDecline: () -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit,
     onConfirm: () -> Unit
@@ -175,9 +237,7 @@ fun RequestManagementDialog(
                 Text(
                     text = when (request.status) {
                         "open" -> "Manage Your Request"
-                        "pending" -> "Offer from: ${request.responderName}"
-                        "in_progress" -> "Request in Progress"
-                        "pending_completion" -> "Confirm Completion" // Updated status
+                        "pending_completion" -> "Confirm Completion"
                         else -> "Request Details"
                     },
                     color = Color.White,
@@ -188,19 +248,17 @@ fun RequestManagementDialog(
 
                 when (request.status) {
                     "open" -> OpenRequestActions(onDelete = onDelete)
-                    "pending" -> PendingRequestActions(onAccept = onAccept, onDecline = onDecline)
-                    "in_progress" -> InProgressRequestActions(onCancel = onCancel)
-                    "pending_completion" -> PendingApprovalActions(onConfirm = onConfirm) // Updated status
+                    "pending_completion" -> PendingApprovalActions(onConfirm = onConfirm)
                 }
             }
         }
     }
 }
 
-
 @Composable
 fun ActivityItemRow(
     request: HelpRequest,
+    currentUser: FirebaseUser?,
     onClick: () -> Unit
 ) {
     Card(
@@ -223,20 +281,27 @@ fun ActivityItemRow(
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = request.title, color = Color.White, fontWeight = FontWeight.SemiBold)
-                // FIXED: Changed createdAt to timestamp
                 Text(text = formatTimestamp(request.timestamp), color = Color.Gray, fontSize = 12.sp)
             }
-            Text(
-                text = request.status.replace("_", " ").replaceFirstChar { it.uppercase() },
-                color = getStatusColor(request.status),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // ✅ BUG FIX: Always show the status, and show the badge *in addition* if there are offers.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = request.status.replace("_", " ").replaceFirstChar { it.uppercase() },
+                    color = getStatusColor(request.status),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                if (request.userId == currentUser?.uid && request.status == "open" && request.offerCount > 0) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OfferCountBadge(count = request.offerCount)
+                }
+            }
         }
     }
 }
 
-// Add these back if they were removed
 @Composable
 fun OpenRequestActions(onDelete: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -254,20 +319,30 @@ fun OpenRequestActions(onDelete: () -> Unit) {
 }
 
 @Composable
-fun PendingRequestActions(onAccept: () -> Unit, onDecline: () -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Button(onClick = onAccept, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.Green)) { Text("Accept", color = Color.Black) }
-        OutlinedButton(onClick = onDecline, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, Color.Gray)) { Text("Decline", color = Color.White) }
-    }
-}
-
-@Composable
 fun InProgressRequestActions(onCancel: () -> Unit) {
     Button(
         onClick = onCancel,
         colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f))
     ) {
         Text("Cancel Request")
+    }
+}
+
+@Composable
+fun OfferCountBadge(count: Int) {
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .background(Color.Red),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = count.toString(),
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp
+        )
     }
 }
 
@@ -310,8 +385,8 @@ private fun getStatusColor(status: String): Color {
     return when (status.lowercase()) {
         "completed" -> Color.Green
         "pending" -> Color.Yellow
-        "pending_completion" -> Color(0xFFFFA500) // Orange
-        "in_progress" -> Color(0xFF4DABF7) // Blue
+        "pending_completion" -> Color(0xFFFFA500)
+        "in_progress" -> Color(0xFF4DABF7)
         "open" -> Color.Gray
         else -> Color.LightGray
     }
