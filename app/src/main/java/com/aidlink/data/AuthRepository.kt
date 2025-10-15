@@ -349,6 +349,24 @@ class AuthRepository(
         }
     }
 
+    suspend fun deleteUserAccount(): Boolean {
+        val uid = getCurrentUser()?.uid
+        if (uid == null) {
+            Log.e(tag, "deleteUserAccount failed: User is not logged in.")
+            return false
+        }
+
+        Log.d(tag, "Attempting to delete user profile document for user: $uid to trigger backend cleanup.")
+        return try {
+            db.collection("users").document(uid).delete().await()
+            Log.i(tag, "Successfully deleted user profile document for $uid. Backend cleanup will now proceed.")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error deleting user profile document for user: $uid", e)
+            false
+        }
+    }
+
     suspend fun updateRequest(requestId: String, updatedRequest: HelpRequest): Boolean {
         Log.d(tag, "Attempting to update request: $requestId")
         return try {

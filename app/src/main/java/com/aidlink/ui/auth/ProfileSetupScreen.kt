@@ -27,7 +27,6 @@ fun ProfileSetupScreen(
     var name by remember { mutableStateOf("") }
     var skills by remember { mutableStateOf("") }
     var area by remember { mutableStateOf("") }
-    var bio by remember { mutableStateOf("") }
 
     LaunchedEffect(key1 = uiState) {
         if (uiState is AuthUiState.AuthSuccessExistingUser) {
@@ -64,24 +63,16 @@ fun ProfileSetupScreen(
             Text("Full Name", color = Color.White, style = MaterialTheme.typography.labelLarge)
             Spacer(modifier = Modifier.height(8.dp))
             CustomTextField(value = name, onValueChange = { name = it }, placeholder = "e.g., Jane Doe")
+
             Spacer(modifier = Modifier.height(24.dp))
             Text("Skills", color = Color.White, style = MaterialTheme.typography.labelLarge)
             Spacer(modifier = Modifier.height(8.dp))
             CustomTextField(value = skills, onValueChange = { skills = it }, placeholder = "e.g., gardening, tutoring")
+
             Spacer(modifier = Modifier.height(24.dp))
             Text("Area", color = Color.White, style = MaterialTheme.typography.labelLarge)
             Spacer(modifier = Modifier.height(8.dp))
             CustomTextField(value = area, onValueChange = { area = it }, placeholder = "e.g., sunnyvale, ca")
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("Short Bio", color = Color.White, style = MaterialTheme.typography.labelLarge)
-            Spacer(modifier = Modifier.height(8.dp))
-            CustomTextField(
-                value = bio,
-                onValueChange = { bio = it },
-                placeholder = "Tell us a little bit about yourself",
-                modifier = Modifier.height(120.dp),
-                singleLine = false
-            )
             Spacer(modifier = Modifier.weight(1f))
 
             Button(
@@ -137,7 +128,6 @@ private fun CustomTextField(
 @Composable
 fun ProfileSetupScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        // FIXED: We no longer pass a ViewModel to the preview.
         ProfileSetupScreen(authViewModel = viewModel(), onProfileSetupComplete = {})
     }
 }

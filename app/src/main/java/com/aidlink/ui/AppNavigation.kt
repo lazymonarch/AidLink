@@ -22,6 +22,7 @@ import com.aidlink.viewmodel.*
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.aidlink.ui.settings.SettingsScreen
 
 @Composable
 fun AppNavigation() {
@@ -127,12 +128,12 @@ fun AppNavigation() {
                 )
             }
 
-            // ✅ THIS IS THE SINGLE, CORRECTED PROFILE ROUTE
             composable("profile") {
                 val profileViewModel: ProfileViewModel = hiltViewModel()
                 ProfileScreen(
                     profileViewModel = profileViewModel,
-                    onNavigateToEdit = { navController.navigate("edit_profile") }
+                    onNavigateToEdit = { navController.navigate("edit_profile") },
+                    onNavigateToSettings = { navController.navigate("settings") }
                 )
             }
 
@@ -170,6 +171,13 @@ fun AppNavigation() {
             composable("edit_profile") {
                 EditProfileScreen(
                     onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable("settings") {
+                SettingsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    navController = navController
                 )
             }
 

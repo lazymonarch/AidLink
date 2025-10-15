@@ -27,11 +27,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.aidlink.model.HelpRequest
+import com.aidlink.model.Offer
 import com.aidlink.ui.theme.AidLinkTheme
+import com.aidlink.viewmodel.HomeViewModel
 import com.aidlink.viewmodel.MyActivityViewModel
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseUser
@@ -56,25 +59,32 @@ fun MyActivityScreen(
     val myResponses by myActivityViewModel.myResponses.collectAsState()
     val completedRequests by myActivityViewModel.completedRequests.collectAsState()
 
-    var requestInDialog by remember { mutableStateOf<HelpRequest?>(null) }
+    // ✅ Simplified state: We only need to know which request is being managed.
+    var managingRequest by remember { mutableStateOf<HelpRequest?>(null) }
 
-    if (requestInDialog != null) {
-        RequestManagementDialog(
-            request = requestInDialog!!,
-            onDismiss = { requestInDialog = null },
+    // ✅ This is the new, unified dialog that handles all cases.
+    if (managingRequest != null) {
+        ManageRequestDialog(
+            request = managingRequest!!,
+            onDismiss = { managingRequest = null },
+            onAcceptOffer = { offer ->
+                myActivityViewModel.onAcceptOffer(managingRequest!!.id, offer.helperId)
+                managingRequest = null // Close dialog on success
+            },
             onDelete = {
-                myActivityViewModel.onDeleteRequest(requestInDialog!!.id)
-                requestInDialog = null
+                myActivityViewModel.onDeleteRequest(managingRequest!!.id)
+                managingRequest = null
             },
             onCancel = {
-                myActivityViewModel.onCancelRequest(requestInDialog!!.id)
-                requestInDialog = null
+                myActivityViewModel.onCancelRequest(managingRequest!!.id)
+                managingRequest = null
             },
             onConfirm = {
-                myActivityViewModel.onConfirmCompletion(requestInDialog!!)
-                requestInDialog = null
+                myActivityViewModel.onConfirmCompletion(managingRequest!!)
+                managingRequest = null
             },
             onNavigateToEdit = { requestId ->
+                managingRequest = null // Close dialog before navigating
                 navController.navigate("edit_request/$requestId")
             }
         )
@@ -132,8 +142,9 @@ fun MyActivityScreen(
                                 request = request,
                                 currentUser = currentUser,
                                 onClick = {
+                                    // ✅ Simplified logic: If the user owns the request, open the management dialog.
                                     if (request.userId == currentUser?.uid) {
-                                        requestInDialog = request
+                                        managingRequest = request
                                     } else if (request.status in listOf("in_progress", "completed", "pending_completion")) {
                                         onNavigateToChat(request.id, request.userName)
                                     }
@@ -147,25 +158,34 @@ fun MyActivityScreen(
     }
 }
 
+
+// ✅ --- THIS IS THE NEW, UNIFIED DIALOG COMPOSABLE ---
 @Composable
-fun RequestManagementDialog(
+fun ManageRequestDialog(
     request: HelpRequest,
     onDismiss: () -> Unit,
+    onAcceptOffer: (Offer) -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
-    onNavigateToEdit: (String) -> Unit // ✅ ADDED this parameter
+    onNavigateToEdit: (String) -> Unit,
+    homeViewModel: HomeViewModel = hiltViewModel() // Inject ViewModel to fetch offers
 ) {
+    // Fetch offers only when this dialog is for an 'open' request
+    LaunchedEffect(request.id) {
+        if (request.status == "open") {
+            homeViewModel.getRequestById(request.id)
+        }
+    }
+    val offers by homeViewModel.offers.collectAsState()
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                // --- DIALOG TITLE ---
                 Text(
                     text = when (request.status) {
                         "open" -> "Manage Your Request"
@@ -174,24 +194,75 @@ fun RequestManagementDialog(
                         else -> "Request Details"
                     },
                     color = Color.White,
-                    fontSize = 18.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp).fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
 
+                // --- CONDITIONAL CONTENT BASED ON STATUS ---
                 when (request.status) {
-                    // ✅ FIXED: Pass the navigation action to the buttons
-                    "open" -> OpenRequestActions(
-                        onDelete = onDelete,
-                        onEdit = { onNavigateToEdit(request.id) }
-                    )
-                    "in_progress" -> InProgressRequestActions(onCancel = onCancel)
-                    "pending_completion" -> PendingApprovalActions(onConfirm = onConfirm)
+                    "open" -> {
+                        // --- Section 1: Offers List ---
+                        Text("Offers Received", color = Color.Gray, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(8.dp))
+                        if (offers.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                                Text("No offers yet.", color = Color.Gray)
+                            }
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.heightIn(max = 200.dp) // prevent dialog from getting too tall
+                            ) {
+                                items(offers) { offer ->
+                                    OfferItemRow(offer = offer, onAccept = { onAcceptOffer(offer) })
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        // --- Section 2: Action Buttons ---
+                        OpenRequestActions(
+                            onDelete = onDelete,
+                            onEdit = { onNavigateToEdit(request.id) }
+                        )
+                    }
+                    "in_progress" -> {
+                        Text(
+                            text = "This will cancel the job with the current helper and reopen the request for new offers. Are you sure?",
+                            color = Color.LightGray,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                        InProgressRequestActions(onCancel = onCancel)
+                    }
+                    "pending_completion" -> {
+                        PendingApprovalActions(onConfirm = onConfirm)
+                    }
                 }
             }
         }
     }
 }
+// --- END OF NEW DIALOG ---
+
+
+@Composable
+fun OfferItemRow(offer: Offer, onAccept: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(offer.helperName, color = Color.White, fontWeight = FontWeight.SemiBold)
+            Text(formatTimestamp(offer.createdAt), color = Color.Gray, fontSize = 12.sp)
+        }
+        Button(onClick = onAccept, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))) {
+            Text("Accept", color = Color.Black)
+        }
+    }
+}
+
 
 @Composable
 fun ActivityItemRow(
@@ -240,9 +311,8 @@ fun ActivityItemRow(
 }
 
 @Composable
-fun OpenRequestActions(onDelete: () -> Unit, onEdit: () -> Unit) { // ✅ ADDED onEdit parameter
+fun OpenRequestActions(onDelete: () -> Unit, onEdit: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        // ✅ FIXED: The onClick is now wired to the onEdit function
         Button(onClick = onEdit, modifier = Modifier.weight(1f)) {
             Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
@@ -260,9 +330,10 @@ fun OpenRequestActions(onDelete: () -> Unit, onEdit: () -> Unit) { // ✅ ADDED 
 fun InProgressRequestActions(onCancel: () -> Unit) {
     Button(
         onClick = onCancel,
+        modifier = Modifier.fillMaxWidth(),
         colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f))
     ) {
-        Text("Cancel Request")
+        Text("Yes, Cancel Job")
     }
 }
 
@@ -294,7 +365,7 @@ fun PendingApprovalActions(onConfirm: () -> Unit) {
     Button(
         onClick = onConfirm,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = Color.Green)
+        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
     ) {
         Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
@@ -346,7 +417,6 @@ private fun formatTimestamp(timestamp: Timestamp?): String {
 @Composable
 fun MyActivityScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        // ✅ FIXED: Pass a NavController for the preview to build successfully
         MyActivityScreen(
             myActivityViewModel = viewModel(),
             onNavigateToChat = { _, _ -> },

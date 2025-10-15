@@ -45,7 +45,8 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun ProfileScreen(
     profileViewModel: ProfileViewModel,
-    onNavigateToEdit: () -> Unit
+    onNavigateToEdit: () -> Unit,
+    onNavigateToSettings: () -> Unit
 ) {
     val userProfile by profileViewModel.userProfile.collectAsState()
 
@@ -108,7 +109,11 @@ fun ProfileScreen(
                 item {
                     Column(modifier = Modifier.padding(top = 24.dp)) {
                         HorizontalDivider(color = Color.DarkGray)
-                        ActionItem(icon = Icons.Default.Settings, text = "Settings", onClick = { /* TODO */ })
+                        ActionItem(
+                            icon = Icons.Default.Settings,
+                            text = "Settings",
+                            onClick = onNavigateToSettings // Trigger navigation
+                        )
                         HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(horizontal = 16.dp))
                         ActionItem(icon = Icons.AutoMirrored.Filled.HelpOutline, text = "Help & Support", onClick = { /* TODO */ })
                         HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(horizontal = 16.dp))
@@ -297,7 +302,10 @@ private fun formatReviewTimestamp(timestamp: Timestamp?): String {
 @Composable
 fun ProfileScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        // ✅ FIXED: Provide a default empty lambda for the preview
-        ProfileScreen(profileViewModel = viewModel(), onNavigateToEdit = {})
+        ProfileScreen(
+            profileViewModel = viewModel(),
+            onNavigateToEdit = {},
+            onNavigateToSettings = {}
+        )
     }
 }
