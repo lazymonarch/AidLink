@@ -23,6 +23,7 @@ import com.aidlink.viewmodel.*
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.aidlink.ui.home.EditRequestScreen
 
 @Composable
 fun AppNavigation() {
@@ -97,6 +98,15 @@ fun AppNavigation() {
                     }
                 )
             }
+            composable(
+                route = "edit_request/{requestId}",
+                arguments = listOf(navArgument("requestId") { type = NavType.StringType })
+            ) {
+                // The EditRequestViewModel is automatically created and gets the requestId.
+                EditRequestScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
 
             // --- Main App Flow ---
             composable("home") {
@@ -114,7 +124,8 @@ fun AppNavigation() {
                     myActivityViewModel = myActivityViewModel,
                     onNavigateToChat = { chatId, otherUserName ->
                         navController.navigate("chat/$chatId/$otherUserName")
-                    }
+                    },
+                    navController = navController
                 )
             }
 

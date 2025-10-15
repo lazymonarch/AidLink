@@ -291,6 +291,25 @@ class AuthRepository(
         }
     }
 
+    suspend fun updateRequest(requestId: String, updatedRequest: HelpRequest): Boolean {
+        Log.d(tag, "Attempting to update request: $requestId")
+        return try {
+            val requestRef = db.collection("requests").document(requestId)
+            val updates = mapOf(
+                "title" to updatedRequest.title,
+                "description" to updatedRequest.description,
+                "category" to updatedRequest.category,
+                "type" to updatedRequest.type
+            )
+            requestRef.update(updates).await()
+            Log.i(tag, "Successfully updated request: $requestId")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error updating request: $requestId", e)
+            false
+        }
+    }
+
     private suspend fun enqueueRequestAction(
         requestId: String,
         actionType: String,

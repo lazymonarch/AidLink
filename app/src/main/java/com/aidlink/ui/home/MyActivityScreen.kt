@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.aidlink.model.HelpRequest
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.MyActivityViewModel
@@ -42,7 +44,8 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun MyActivityScreen(
     myActivityViewModel: MyActivityViewModel,
-    onNavigateToChat: (chatId: String, otherUserName: String) -> Unit
+    onNavigateToChat: (chatId: String, otherUserName: String) -> Unit,
+    navController: NavController
 ) {
     val tabTitles = listOf("My Requests", "My Responses", "Completed")
     val pagerState = rememberPagerState { tabTitles.size }
@@ -60,7 +63,7 @@ fun MyActivityScreen(
             request = requestInDialog!!,
             onDismiss = { requestInDialog = null },
             onDelete = {
-                myActivityViewModel.onDeleteRequest(requestInDialog!!.id) // This is the key line
+                myActivityViewModel.onDeleteRequest(requestInDialog!!.id)
                 requestInDialog = null
             },
             onCancel = {
@@ -70,6 +73,9 @@ fun MyActivityScreen(
             onConfirm = {
                 myActivityViewModel.onConfirmCompletion(requestInDialog!!)
                 requestInDialog = null
+            },
+            onNavigateToEdit = { requestId ->
+                navController.navigate("edit_request/$requestId")
             }
         )
     }
@@ -141,14 +147,14 @@ fun MyActivityScreen(
     }
 }
 
-// NOTE: This composable is simplified as we are combining the logic
 @Composable
 fun RequestManagementDialog(
     request: HelpRequest,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: () -> Unit,
+    onNavigateToEdit: (String) -> Unit // ✅ ADDED this parameter
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -174,7 +180,11 @@ fun RequestManagementDialog(
                 )
 
                 when (request.status) {
-                    "open" -> OpenRequestActions(onDelete = onDelete)
+                    // ✅ FIXED: Pass the navigation action to the buttons
+                    "open" -> OpenRequestActions(
+                        onDelete = onDelete,
+                        onEdit = { onNavigateToEdit(request.id) }
+                    )
                     "in_progress" -> InProgressRequestActions(onCancel = onCancel)
                     "pending_completion" -> PendingApprovalActions(onConfirm = onConfirm)
                 }
@@ -213,7 +223,6 @@ fun ActivityItemRow(
             }
             Spacer(modifier = Modifier.width(8.dp))
 
-            // ✅ BUG FIX: Always show the status, and show the badge *in addition* if there are offers.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = request.status.replace("_", " ").replaceFirstChar { it.uppercase() },
@@ -231,9 +240,10 @@ fun ActivityItemRow(
 }
 
 @Composable
-fun OpenRequestActions(onDelete: () -> Unit) {
+fun OpenRequestActions(onDelete: () -> Unit, onEdit: () -> Unit) { // ✅ ADDED onEdit parameter
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Button(onClick = { /* TODO: Navigate to Edit Screen */ }, modifier = Modifier.weight(1f)) {
+        // ✅ FIXED: The onClick is now wired to the onEdit function
+        Button(onClick = onEdit, modifier = Modifier.weight(1f)) {
             Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text("Edit")
@@ -336,6 +346,11 @@ private fun formatTimestamp(timestamp: Timestamp?): String {
 @Composable
 fun MyActivityScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        MyActivityScreen(myActivityViewModel = viewModel(), onNavigateToChat = { _, _ -> })
+        // ✅ FIXED: Pass a NavController for the preview to build successfully
+        MyActivityScreen(
+            myActivityViewModel = viewModel(),
+            onNavigateToChat = { _, _ -> },
+            navController = rememberNavController()
+        )
     }
 }
