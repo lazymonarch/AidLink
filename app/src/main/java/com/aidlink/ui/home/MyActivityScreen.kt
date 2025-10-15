@@ -27,12 +27,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.model.HelpRequest
-import com.aidlink.model.Offer
 import com.aidlink.ui.theme.AidLinkTheme
-import com.aidlink.viewmodel.HomeViewModel
 import com.aidlink.viewmodel.MyActivityViewModel
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseUser
@@ -57,24 +54,13 @@ fun MyActivityScreen(
     val completedRequests by myActivityViewModel.completedRequests.collectAsState()
 
     var requestInDialog by remember { mutableStateOf<HelpRequest?>(null) }
-    var showOffersDialog by remember { mutableStateOf(false) }
 
-    if (showOffersDialog && requestInDialog != null) {
-        OffersListDialog(
-            requestId = requestInDialog!!.id,
-            onDismiss = { showOffersDialog = false },
-            onAcceptOffer = { offer ->
-                myActivityViewModel.onAcceptOffer(requestInDialog!!.id, offer.helperId)
-                showOffersDialog = false
-            }
-        )
-    }
-
-    if (requestInDialog != null && !showOffersDialog) {
+    if (requestInDialog != null) {
         RequestManagementDialog(
             request = requestInDialog!!,
             onDismiss = { requestInDialog = null },
             onDelete = {
+                myActivityViewModel.onDeleteRequest(requestInDialog!!.id) // This is the key line
                 requestInDialog = null
             },
             onCancel = {
@@ -142,9 +128,6 @@ fun MyActivityScreen(
                                 onClick = {
                                     if (request.userId == currentUser?.uid) {
                                         requestInDialog = request
-                                        if (request.status == "open") {
-                                            showOffersDialog = true
-                                        }
                                     } else if (request.status in listOf("in_progress", "completed", "pending_completion")) {
                                         onNavigateToChat(request.id, request.userName)
                                     }
@@ -158,64 +141,7 @@ fun MyActivityScreen(
     }
 }
 
-@Composable
-fun OffersListDialog(
-    requestId: String,
-    onDismiss: () -> Unit,
-    onAcceptOffer: (Offer) -> Unit,
-    homeViewModel: HomeViewModel = hiltViewModel()
-) {
-    LaunchedEffect(requestId) {
-        homeViewModel.getRequestById(requestId)
-    }
-    val offers by homeViewModel.offers.collectAsState()
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    "Offers Received",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                if (offers.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                        Text("No offers yet.", color = Color.Gray)
-                    }
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        items(offers) { offer ->
-                            OfferItemRow(offer = offer, onAccept = { onAcceptOffer(offer) })
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun OfferItemRow(offer: Offer, onAccept: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(offer.helperName, color = Color.White, fontWeight = FontWeight.SemiBold)
-            Text(formatTimestamp(offer.createdAt), color = Color.Gray, fontSize = 12.sp)
-        }
-        Button(onClick = onAccept, colors = ButtonDefaults.buttonColors(containerColor = Color.Green)) {
-            Text("Accept", color = Color.Black)
-        }
-    }
-}
-
-
+// NOTE: This composable is simplified as we are combining the logic
 @Composable
 fun RequestManagementDialog(
     request: HelpRequest,
@@ -237,6 +163,7 @@ fun RequestManagementDialog(
                 Text(
                     text = when (request.status) {
                         "open" -> "Manage Your Request"
+                        "in_progress" -> "Manage In-Progress Job"
                         "pending_completion" -> "Confirm Completion"
                         else -> "Request Details"
                     },
@@ -248,6 +175,7 @@ fun RequestManagementDialog(
 
                 when (request.status) {
                     "open" -> OpenRequestActions(onDelete = onDelete)
+                    "in_progress" -> InProgressRequestActions(onCancel = onCancel)
                     "pending_completion" -> PendingApprovalActions(onConfirm = onConfirm)
                 }
             }

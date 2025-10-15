@@ -24,21 +24,18 @@ class MyActivityViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Derives 'myRequests' from the single source of truth.
     val myRequests: StateFlow<List<HelpRequest>> = myActivityRequests
         .map { requests ->
             requests.filter { it.userId == repository.getCurrentUser()?.uid && it.status != "completed" }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Derives 'myResponses' from the single source of truth.
     val myResponses: StateFlow<List<HelpRequest>> = myActivityRequests
         .map { requests ->
             requests.filter { it.responderId == repository.getCurrentUser()?.uid && it.status != "completed" }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Derives 'completedRequests' from the single source of truth.
     val completedRequests: StateFlow<List<HelpRequest>> = myActivityRequests
         .map { requests ->
             requests.filter { it.status == "completed" }
@@ -51,7 +48,15 @@ class MyActivityViewModel @Inject constructor(
         }
     }
 
-    fun onDeleteRequest(requestId: String) { /* Not yet implemented */ }
+    // ---
+    // --- THIS IS THE CRITICAL FIX ---
+    // This function now correctly calls the repository to delete the request.
+    fun onDeleteRequest(requestId: String) {
+        viewModelScope.launch {
+            repository.deleteRequest(requestId)
+        }
+    }
+    // --- END OF FIX ---
 
     fun onCancelRequest(requestId: String) {
         viewModelScope.launch {

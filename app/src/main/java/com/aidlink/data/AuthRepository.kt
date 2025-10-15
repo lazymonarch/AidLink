@@ -1,4 +1,3 @@
-
 package com.aidlink.data
 
 import android.app.Activity
@@ -28,6 +27,7 @@ class AuthRepository(
     private val db: FirebaseFirestore,
 ) {
     private val tag = "AuthRepository"
+
     fun getAuthStateFlow(): Flow<FirebaseUser?> = callbackFlow {
         val listener = FirebaseAuth.AuthStateListener { auth ->
             trySend(auth.currentUser)
@@ -38,18 +38,15 @@ class AuthRepository(
 
     fun getCurrentUser() = auth.currentUser
 
-    // ✅ NEW: Creates an offer by triggering the "make_offer" backend action.
     suspend fun makeOffer(requestId: String): Boolean {
         return enqueueRequestAction(requestId, "make_offer")
     }
 
-    // ✅ NEW: Accepts a specific offer, passing the chosen helper's ID to the backend.
     suspend fun acceptOffer(requestId: String, helperId: String): Boolean {
         val data = mapOf("helperId" to helperId)
         return enqueueRequestAction(requestId, "accept_offer", data)
     }
 
-    // ✅ NEW: Gets a real-time stream of offers for a specific request.
     fun getOffers(requestId: String): Flow<List<Offer>> = callbackFlow {
         val listener = db.collection("requests").document(requestId).collection("offers")
             .orderBy("createdAt", Query.Direction.DESCENDING)
@@ -73,6 +70,7 @@ class AuthRepository(
     suspend fun cancelRequest(requestId: String): Boolean {
         return enqueueRequestAction(requestId, "cancel_request")
     }
+
     suspend fun confirmCompletion(requestId: String): Boolean {
         return enqueueRequestAction(requestId, "confirm_complete")
     }
@@ -125,7 +123,6 @@ class AuthRepository(
 
     suspend fun getUserProfileOnce(uid: String): UserProfile? {
         return try {
-            // ✅ FIXED: Using the modern KTX toObject()
             db.collection("users").document(uid).get().await().toObject<UserProfile>()
         } catch (e: Exception) {
             Log.e(tag, "Error fetching user profile", e)
@@ -140,7 +137,6 @@ class AuthRepository(
                     close(error)
                     return@addSnapshotListener
                 }
-                // ✅ FIXED: Using the modern KTX toObject()
                 trySend(snapshot?.toObject<UserProfile>())
             }
         awaitClose { listener.remove() }
@@ -185,7 +181,6 @@ class AuthRepository(
     suspend fun getRequestById(requestId: String): HelpRequest? {
         return try {
             val document = db.collection("requests").document(requestId).get().await()
-            // ✅ FIXED: Using the modern KTX toObject()
             document.toObject<HelpRequest>()?.copy(id = document.id)
         } catch (e: Exception) {
             Log.e(tag, "Error fetching request by ID", e)
@@ -236,18 +231,6 @@ class AuthRepository(
         awaitClose { listener.remove() }
     }
 
-    fun getChat(chatId: String): Flow<Chat?> = callbackFlow {
-        val listener = db.collection("chats").document(chatId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    close(error)
-                    return@addSnapshotListener
-                }
-                trySend(snapshot?.toObject<Chat>())
-            }
-        awaitClose { listener.remove() }
-    }
-
     fun getMessages(chatId: String): Flow<List<Message>> = callbackFlow {
         val listener = db.collection("chats").document(chatId).collection("messages")
             .orderBy("timestamp", Query.Direction.ASCENDING)
@@ -256,7 +239,6 @@ class AuthRepository(
                     close(error)
                     return@addSnapshotListener
                 }
-                // ✅ FIXED: Using the modern KTX toObject()
                 val messages = snapshots?.mapNotNull { it.toObject<Message>() }
                 trySend(messages ?: emptyList())
             }
@@ -264,7 +246,13 @@ class AuthRepository(
     }
 
     suspend fun sendMessage(chatId: String, text: String): Boolean {
-        val senderId = getCurrentUser()?.uid ?: return false
+        val senderId = getCurrentUser()?.uid
+        if (senderId == null) {
+            Log.e(tag, "sendMessage failed: User is not logged in.")
+            return false
+        }
+
+        Log.d(tag, "Attempting to send message to chatId: $chatId")
         return try {
             val chatRef = db.collection("chats").document(chatId)
             val messageRef = chatRef.collection("messages").document()
@@ -282,9 +270,23 @@ class AuthRepository(
                     "lastMessageTimestamp" to FieldValue.serverTimestamp()
                 ))
             }.await()
+
+            Log.i(tag, "Successfully sent message to chatId: $chatId")
             true
         } catch (e: Exception) {
-            Log.e(tag, "Error sending message", e)
+            Log.e(tag, "Error sending message to chatId: $chatId. Check Firestore rules.", e)
+            false
+        }
+    }
+
+    suspend fun deleteRequest(requestId: String): Boolean {
+        Log.d(tag, "Attempting to delete request: $requestId")
+        return try {
+            db.collection("requests").document(requestId).delete().await()
+            Log.i(tag, "Successfully sent delete command for request: $requestId. Cleanup will be handled by the backend.")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error deleting request: $requestId. Check Firestore rules.", e)
             false
         }
     }
@@ -294,8 +296,14 @@ class AuthRepository(
         actionType: String,
         extraData: Map<String, Any> = emptyMap()
     ): Boolean {
+        Log.d(tag, "Attempting to enqueue action '$actionType' for request $requestId")
         return try {
-            val uid = auth.currentUser?.uid ?: return false
+            val uid = auth.currentUser?.uid
+            if (uid == null) {
+                Log.e(tag, "Failed to enqueue action: User is not logged in.")
+                return false
+            }
+
             val action = mutableMapOf<String, Any>(
                 "type" to actionType,
                 "createdBy" to uid,
@@ -308,9 +316,10 @@ class AuthRepository(
                 .collection("actions")
                 .add(action)
                 .await()
+            Log.i(tag, "Successfully enqueued action '$actionType' for request $requestId")
             true
         } catch (e: Exception) {
-            Log.e("AuthRepository", "Failed to enqueue action '$actionType' for request $requestId", e)
+            Log.e(tag, "Failed to enqueue action '$actionType' for request $requestId", e)
             false
         }
     }
