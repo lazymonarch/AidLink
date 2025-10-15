@@ -6,5 +6,8 @@ data class UserProfile(
     val bio: String = "",
     val area: String = "",
     val phone: String = "",
-    val skills: List<String> = emptyList()
+    val skills: List<String> = emptyList(),
+    val requestsPosted: Int = 0,
+    val helpsCompleted: Int = 0,
+    val photoUrl: String = ""
 )

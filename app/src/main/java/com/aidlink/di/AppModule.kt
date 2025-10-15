@@ -4,6 +4,7 @@ import com.aidlink.data.AuthRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.BuildConfig
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -28,6 +29,16 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideFirebaseStorage(): FirebaseStorage {
+        val storage = FirebaseStorage.getInstance()
+        if (BuildConfig.DEBUG) {
+            storage.useEmulator(EMULATOR_HOST, 9199)
+        }
+        return storage
+    }
+
+    @Provides
+    @Singleton
     fun provideFirebaseFirestore(): FirebaseFirestore {
         val db = FirebaseFirestore.getInstance()
         if (BuildConfig.DEBUG) {
@@ -40,6 +51,7 @@ object AppModule {
     @Singleton
     fun provideAuthRepository(
         auth: FirebaseAuth,
-        db: FirebaseFirestore
-    ): AuthRepository = AuthRepository(auth, db)
+        db: FirebaseFirestore,
+        storage: FirebaseStorage
+    ): AuthRepository = AuthRepository(auth, db, storage)
 }

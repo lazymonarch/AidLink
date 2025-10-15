@@ -1,5 +1,3 @@
-// In: main/java/com/aidlink/ui/AppNavigation.kt
-
 package com.aidlink.ui
 
 import androidx.compose.foundation.layout.padding
@@ -19,11 +17,11 @@ import com.aidlink.ui.auth.LoginScreen
 import com.aidlink.ui.auth.OtpVerificationScreen
 import com.aidlink.ui.auth.ProfileSetupScreen
 import com.aidlink.ui.home.*
+import com.aidlink.ui.profile.EditProfileScreen
 import com.aidlink.viewmodel.*
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.aidlink.ui.home.EditRequestScreen
 
 @Composable
 fun AppNavigation() {
@@ -33,7 +31,7 @@ fun AppNavigation() {
     val homeViewModel: HomeViewModel = hiltViewModel()
     val myActivityViewModel: MyActivityViewModel = hiltViewModel()
     val chatViewModel: ChatViewModel = hiltViewModel()
-    val profileViewModel: ProfileViewModel = hiltViewModel()
+
     val currentUser by appNavViewModel.repository.getAuthStateFlow().collectAsState(initial = Firebase.auth.currentUser)
 
     LaunchedEffect(currentUser) {
@@ -98,15 +96,6 @@ fun AppNavigation() {
                     }
                 )
             }
-            composable(
-                route = "edit_request/{requestId}",
-                arguments = listOf(navArgument("requestId") { type = NavType.StringType })
-            ) {
-                // The EditRequestViewModel is automatically created and gets the requestId.
-                EditRequestScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
 
             // --- Main App Flow ---
             composable("home") {
@@ -138,9 +127,13 @@ fun AppNavigation() {
                 )
             }
 
+            // ✅ THIS IS THE SINGLE, CORRECTED PROFILE ROUTE
             composable("profile") {
                 val profileViewModel: ProfileViewModel = hiltViewModel()
-                ProfileScreen(profileViewModel = profileViewModel)
+                ProfileScreen(
+                    profileViewModel = profileViewModel,
+                    onNavigateToEdit = { navController.navigate("edit_profile") }
+                )
             }
 
             composable("post_request") {
@@ -166,6 +159,21 @@ fun AppNavigation() {
             }
 
             composable(
+                route = "edit_request/{requestId}",
+                arguments = listOf(navArgument("requestId") { type = NavType.StringType })
+            ) {
+                EditRequestScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable("edit_profile") {
+                EditProfileScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
                 route = "chat/{chatId}/{userName}",
                 arguments = listOf(
                     navArgument("chatId") { type = NavType.StringType },
@@ -178,7 +186,7 @@ fun AppNavigation() {
                     otherUserName = userName,
                     chatViewModel = chatViewModel,
                     onBackClicked = {
-                        chatViewModel.clearChatScreenState() // This now works correctly.
+                        chatViewModel.clearChatScreenState()
                         navController.popBackStack()
                     }
                 )

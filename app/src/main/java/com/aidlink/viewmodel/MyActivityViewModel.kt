@@ -22,6 +22,8 @@ class MyActivityViewModel @Inject constructor(
                 flowOf(emptyList())
             }
         }
+
+        .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val myRequests: StateFlow<List<HelpRequest>> = myActivityRequests

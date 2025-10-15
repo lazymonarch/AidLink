@@ -21,6 +21,8 @@ class ProfileViewModel @Inject constructor(
                 flowOf(null)
             }
         }
+
+        .catch { emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun onLogoutClicked() {

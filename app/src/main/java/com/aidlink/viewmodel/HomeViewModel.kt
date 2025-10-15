@@ -37,6 +37,8 @@ class HomeViewModel @Inject constructor(
                 flowOf(emptyList())
             }
         }
+
+        .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ✅ FIXED: Moved selectedRequest before offers to ensure it's initialized first.

@@ -34,20 +34,23 @@ import com.aidlink.viewmodel.ProfileViewModel
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.runtime.remember
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.google.firebase.Timestamp
 import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    profileViewModel: ProfileViewModel
+    profileViewModel: ProfileViewModel,
+    onNavigateToEdit: () -> Unit
 ) {
     val userProfile by profileViewModel.userProfile.collectAsState()
 
-    val reviews = listOf(
-        Review(reviewerId = "1", reviewerName = "Sophia Bennett", rating = 5, comment = "Ethan was incredibly helpful..."),
-        Review(reviewerId = "2", reviewerName = "Liam Harper", rating = 4, comment = "Ethan helped me with some minor home repairs...")
-    )
+    // This is placeholder data.
+    val reviews = listOf<Review>()
 
     Scaffold(
         containerColor = Color.Black,
@@ -75,25 +78,33 @@ fun ProfileScreen(
                     }
                 }
             } else {
-                item { UserInfoSection(userProfile = userProfile!!) }
-
-                // FIXED: The StatsSection has been removed to resolve errors
-                // item { StatsSection(helps = helpsCount, requests = requestsCount, rating = 4.8) }
+                item { UserInfoSection(userProfile = userProfile!!, onNavigateToEdit = onNavigateToEdit) }
 
                 item {
-                    Text(
-                        text = "Reviews",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
+                    StatsSection(
+                        helps = userProfile!!.helpsCompleted,
+                        requests = userProfile!!.requestsPosted,
+                        rating = 4.8 // This is still hardcoded for now
                     )
                 }
-                items(items = reviews, key = { it.reviewerId }) { review ->
-                    ReviewCard(review = review, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+
+                if (reviews.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "Reviews",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
+                        )
+                    }
+                    items(items = reviews, key = { it.reviewerId }) { review ->
+                        ReviewCard(review = review, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    }
                 }
+
                 item {
                     Column(modifier = Modifier.padding(top = 24.dp)) {
                         HorizontalDivider(color = Color.DarkGray)
@@ -115,14 +126,21 @@ fun ProfileScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun UserInfoSection(userProfile: UserProfile) {
+private fun UserInfoSection(userProfile: UserProfile, onNavigateToEdit: () -> Unit) {
     Spacer(modifier = Modifier.height(16.dp))
-    Box(
+    AsyncImage(
+        model = ImageRequest.Builder(LocalContext.current)
+            .data(userProfile.photoUrl)
+            .crossfade(true)
+            .build(),
+        contentDescription = "Profile Picture",
         modifier = Modifier
             .size(90.dp)
             .clip(CircleShape)
-            .background(Color.DarkGray)
+            .background(Color.DarkGray),
+        contentScale = ContentScale.Crop
     )
     Spacer(modifier = Modifier.height(16.dp))
     Text(
@@ -136,8 +154,8 @@ private fun UserInfoSection(userProfile: UserProfile) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.clickable(
             interactionSource = remember { MutableInteractionSource() },
-            indication = rememberRipple(bounded = false), // unbounded for text
-            onClick = { /* TODO: Navigate to Edit Profile */ }
+            indication = rememberRipple(bounded = false),
+            onClick = onNavigateToEdit
         )
     ) {
         Icon(Icons.Default.Edit, contentDescription = "Edit Profile", tint = Color.Gray, modifier = Modifier.size(16.dp))
@@ -154,8 +172,12 @@ private fun UserInfoSection(userProfile: UserProfile) {
         )
         Spacer(modifier = Modifier.height(16.dp))
     }
-    Row(
+
+    // --- THIS IS THE CRITICAL FIX ---
+    // Replaced Row with FlowRow to allow skill tags to wrap to the next line.
+    FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp), // Adds vertical space between rows of tags
         modifier = Modifier.padding(horizontal = 16.dp)
     ) {
         userProfile.skills.forEach { skill ->
@@ -169,7 +191,9 @@ private fun UserInfoSection(userProfile: UserProfile) {
             }
         }
     }
+    // --- END OF FIX ---
 }
+
 @Composable
 private fun StatsSection(helps: Int, requests: Int, rating: Double) {
     Column(Modifier.padding(top = 24.dp)) {
@@ -202,7 +226,6 @@ private fun StatItem(value: String, label: String, hasStar: Boolean = false) {
     }
 }
 
-// --- THIS IS THE CORRECTED REVIEW CARD ---
 @Composable
 private fun ReviewCard(review: Review, modifier: Modifier = Modifier) {
     Card(
@@ -234,7 +257,6 @@ private fun ReviewCard(review: Review, modifier: Modifier = Modifier) {
         }
     }
 }
-// --- END CORRECTION ---
 
 @Composable
 private fun ActionItem(icon: ImageVector, text: String, color: Color = Color.White, onClick: () -> Unit) {
@@ -256,9 +278,8 @@ private fun ActionItem(icon: ImageVector, text: String, color: Color = Color.Whi
     }
 }
 
-// --- NEW HELPER FUNCTION TO FORMAT TIME ---
 private fun formatReviewTimestamp(timestamp: Timestamp?): String {
-    if (timestamp == null) return "Just now" // Fallback for preview or fresh reviews
+    if (timestamp == null) return "Just now"
     val diff = Timestamp.now().seconds - timestamp.seconds
     val days = TimeUnit.SECONDS.toDays(diff)
     if (days > 365) return "${days / 365}y ago"
@@ -276,6 +297,7 @@ private fun formatReviewTimestamp(timestamp: Timestamp?): String {
 @Composable
 fun ProfileScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        ProfileScreen(profileViewModel = viewModel())
+        // ✅ FIXED: Provide a default empty lambda for the preview
+        ProfileScreen(profileViewModel = viewModel(), onNavigateToEdit = {})
     }
 }

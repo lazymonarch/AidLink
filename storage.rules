@@ -1,0 +1,18 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // This rule matches any file uploaded directly inside the 'profile_images' folder.
+    match /profile_images/{imageFile} {
+      
+      // Allow anyone to read the profile images.
+      allow read;
+      
+      // Allow a user to write (upload/update) a file if:
+      // 1. They are logged in.
+      // 2. The name of the file they are uploading ('imageFile') is exactly
+      //    their user ID followed by '.jpg'.
+      allow write: if request.auth != null && imageFile == request.auth.uid + '.jpg';
+    }
+  }
+}

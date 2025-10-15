@@ -25,6 +25,8 @@ class ChatViewModel @Inject constructor(
         .flatMapLatest { user ->
             if (user != null) repository.getChats() else flowOf(emptyList())
         }
+
+        .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val messages: StateFlow<List<Message>> = chatId.flatMapLatest { id ->

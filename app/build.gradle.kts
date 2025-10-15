@@ -55,16 +55,19 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.foundation)
-    implementation(libs.androidx.compose.material3) // Your UI is Material 3
-    implementation(libs.androidx.compose.material.icons.extended) // For icons
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.material.icons.extended) {
         exclude(group = "androidx.compose.material", module = "material")
     }
+    implementation(libs.coil.compose)
 
     // Firebase (using the BOM)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth.ktx)
-    implementation(libs.firebase.firestore.ktx) // KTX version includes the base dependency
+    implementation(libs.firebase.firestore.ktx)
+    implementation(platform(libs.firebase.bom.v3310))
+    implementation(libs.firebase.storage.ktx)
 
     // Hilt for Dependency Injection
     implementation(libs.hilt.android)
@@ -79,7 +82,7 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom)) // BOM for test dependencies too
+    androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

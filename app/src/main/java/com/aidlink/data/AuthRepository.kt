@@ -1,6 +1,7 @@
 package com.aidlink.data
 
 import android.app.Activity
+import android.net.Uri
 import android.util.Log
 import com.aidlink.model.Chat
 import com.aidlink.model.HelpRequest
@@ -21,10 +22,12 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.storage.FirebaseStorage
 
 class AuthRepository(
     private val auth: FirebaseAuth,
     private val db: FirebaseFirestore,
+    private val storage: FirebaseStorage
 ) {
     private val tag = "AuthRepository"
 
@@ -140,6 +143,61 @@ class AuthRepository(
                 trySend(snapshot?.toObject<UserProfile>())
             }
         awaitClose { listener.remove() }
+    }
+
+    // ✅ --- ADD THIS ENTIRE NEW FUNCTION ---
+    /**
+     * Updates the user's profile. If a new image URI is provided, it uploads the image
+     * to Firebase Storage first, gets the download URL, and then updates the Firestore document.
+     * If the image URI is null, it only updates the text fields in Firestore.
+     */
+    suspend fun updateUserProfile(
+        uid: String,
+        name: String,
+        bio: String,
+        skills: List<String>,
+        area: String,
+        imageUri: Uri?
+    ): Boolean {
+        Log.d(tag, "Attempting to update profile for user: $uid")
+        return try {
+            var photoUrl = "" // Default to empty string
+
+            // Step 1: Upload image to Firebase Storage if a new one is provided
+            if (imageUri != null) {
+                Log.d(tag, "New image provided. Uploading to Firebase Storage...")
+                // Create a reference to 'profile_images/[user_id].jpg'
+                val photoRef = storage.reference.child("profile_images/$uid.jpg")
+
+                // Upload the file and wait for the result
+                photoRef.putFile(imageUri).await()
+
+                // Get the public download URL for the uploaded image
+                photoUrl = photoRef.downloadUrl.await().toString()
+                Log.i(tag, "Image uploaded successfully. URL: $photoUrl")
+            }
+
+            // Step 2: Prepare the data to update in Firestore
+            val userProfileRef = db.collection("users").document(uid)
+            val updates = mutableMapOf<String, Any>(
+                "name" to name,
+                "bio" to bio,
+                "skills" to skills,
+                "area" to area
+            )
+            // Only add the photoUrl to the map if it's not empty
+            if (photoUrl.isNotEmpty()) {
+                updates["photoUrl"] = photoUrl
+            }
+
+            // Step 3: Update the Firestore document
+            userProfileRef.update(updates).await()
+            Log.i(tag, "Successfully updated user profile in Firestore for user: $uid")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error updating user profile for user: $uid", e)
+            false
+        }
     }
 
     suspend fun createRequest(request: HelpRequest): Boolean {
