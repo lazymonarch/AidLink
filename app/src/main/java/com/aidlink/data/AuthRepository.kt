@@ -9,20 +9,20 @@ import com.aidlink.model.Message
 import com.aidlink.model.Offer
 import com.aidlink.model.UserProfile
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.ktx.toObject
+import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
-import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.storage.FirebaseStorage
 
 class AuthRepository(
     private val auth: FirebaseAuth,
@@ -59,7 +59,7 @@ class AuthRepository(
                     return@addSnapshotListener
                 }
                 val offers = snapshots?.map { doc ->
-                    doc.toObject<Offer>().copy(id = doc.id)
+                    doc.toObject(Offer::class.java).copy(id = doc.id)
                 } ?: emptyList()
                 trySend(offers)
             }
@@ -126,7 +126,7 @@ class AuthRepository(
 
     suspend fun getUserProfileOnce(uid: String): UserProfile? {
         return try {
-            db.collection("users").document(uid).get().await().toObject<UserProfile>()
+            db.collection("users").document(uid).get().await().toObject(UserProfile::class.java)
         } catch (e: Exception) {
             Log.e(tag, "Error fetching user profile", e)
             null
@@ -140,7 +140,7 @@ class AuthRepository(
                     close(error)
                     return@addSnapshotListener
                 }
-                trySend(snapshot?.toObject<UserProfile>())
+                trySend(snapshot?.toObject(UserProfile::class.java))
             }
         awaitClose { listener.remove() }
     }
@@ -173,7 +173,6 @@ class AuthRepository(
                 updates["photoUrl"] = photoUrl
             }
 
-            // Step 3: Update the Firestore document
             userProfileRef.update(updates).await()
             Log.i(tag, "Successfully updated user profile in Firestore for user: $uid")
             true
@@ -213,7 +212,9 @@ class AuthRepository(
                     close(error)
                     return@addSnapshotListener
                 }
-                val requests = snapshots?.map { it.toObject<HelpRequest>().copy(id = it.id) }
+                val requests = snapshots?.map {
+                    it.toObject(HelpRequest::class.java).copy(id = it.id)
+                }
                 trySend(requests ?: emptyList())
             }
         awaitClose { listener.remove() }
@@ -222,7 +223,7 @@ class AuthRepository(
     suspend fun getRequestById(requestId: String): HelpRequest? {
         return try {
             val document = db.collection("requests").document(requestId).get().await()
-            document.toObject<HelpRequest>()?.copy(id = document.id)
+            document.toObject(HelpRequest::class.java)?.copy(id = document.id)
         } catch (e: Exception) {
             Log.e(tag, "Error fetching request by ID", e)
             null
@@ -240,7 +241,9 @@ class AuthRepository(
                     close(error)
                     return@addSnapshotListener
                 }
-                val allRequests = snapshots?.mapNotNull { it.toObject<HelpRequest>().copy(id = it.id) } ?: emptyList()
+                val allRequests = snapshots?.mapNotNull {
+                    it.toObject(HelpRequest::class.java).copy(id = it.id)
+                } ?: emptyList()
 
                 val myRequests = allRequests.filter { it.userId == userId || it.responderId == userId }
                     .sortedByDescending { it.timestamp?.seconds ?: 0L }
@@ -250,7 +253,6 @@ class AuthRepository(
         awaitClose { listener.remove() }
     }
 
-
     fun getChats(): Flow<List<Chat>> = callbackFlow {
         val userId = getCurrentUser()?.uid
         if (userId == null) {
@@ -258,19 +260,55 @@ class AuthRepository(
             close()
             return@callbackFlow
         }
-        val listener = db.collection("chats")
+
+        val chatsQuery = db.collection("chats")
             .whereArrayContains("participants", userId)
             .orderBy("lastMessageTimestamp", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshots, error ->
-                if (error != null) {
-                    close(error)
-                    return@addSnapshotListener
-                }
-                val chats = snapshots?.map { it.toObject<Chat>().copy(id = it.id) }
-                trySend(chats ?: emptyList())
+
+        val requestsQuery = db.collection("requests")
+            .whereArrayContains("participants", userId)
+
+        var requestsListener: ListenerRegistration? = null
+        var chats: List<Chat> = emptyList()
+        var requests: List<HelpRequest> = emptyList()
+
+        fun updateChats() {
+            val requestStatusMap = requests.associateBy({ it.id }, { it.status })
+            val chatsWithStatus = chats.map { chat ->
+                chat.copy(status = requestStatusMap[chat.id] ?: "")
             }
-        awaitClose { listener.remove() }
+            val visibleChats = chatsWithStatus.filter { !it.deletedBy.contains(userId) }
+            trySend(visibleChats)
+        }
+
+        val chatsListener = chatsQuery.addSnapshotListener { chatsSnapshot, chatsError ->
+            if (chatsError != null) {
+                close(chatsError)
+                return@addSnapshotListener
+            }
+            chats = chatsSnapshot?.map { it.toObject(Chat::class.java).copy(id = it.id) } ?: emptyList()
+
+            if (requestsListener == null) {
+                requestsListener = requestsQuery.addSnapshotListener { requestsSnapshot, requestsError ->
+                    if (requestsError != null) {
+                        close(requestsError)
+                        return@addSnapshotListener
+                    }
+                    requests = requestsSnapshot?.map { it.toObject(HelpRequest::class.java).copy(id = it.id) } ?: emptyList()
+                    updateChats()
+                }
+            } else {
+                updateChats()
+            }
+        }
+
+        awaitClose {
+            Log.d(tag, "Removing chats and requests listeners.")
+            chatsListener.remove()
+            requestsListener?.remove()
+        }
     }
+
 
     fun getMessages(chatId: String): Flow<List<Message>> = callbackFlow {
         val listener = db.collection("chats").document(chatId).collection("messages")
@@ -280,10 +318,27 @@ class AuthRepository(
                     close(error)
                     return@addSnapshotListener
                 }
-                val messages = snapshots?.mapNotNull { it.toObject<Message>() }
+                val messages = snapshots?.mapNotNull {
+                    it.toObject(Message::class.java)
+                }
                 trySend(messages ?: emptyList())
             }
         awaitClose { listener.remove() }
+    }
+
+    suspend fun hideChatForCurrentUser(chatId: String): Boolean {
+        val uid = getCurrentUser()?.uid ?: return false
+        Log.d(tag, "Attempting to hide chat $chatId for user $uid")
+        return try {
+            db.collection("chats").document(chatId).update(
+                "deletedBy", FieldValue.arrayUnion(uid)
+            ).await()
+            Log.i(tag, "Successfully hid chat $chatId for user $uid")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error hiding chat: $chatId", e)
+            false
+        }
     }
 
     suspend fun sendMessage(chatId: String, text: String): Boolean {

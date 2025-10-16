@@ -1,3 +1,4 @@
+// In: model/Chat.kt
 package com.aidlink.model
 
 import com.google.firebase.Timestamp
@@ -8,5 +9,7 @@ data class Chat(
     val participantInfo: Map<String, Map<String, String>> = emptyMap(),
     val lastMessage: String = "",
     val lastMessageTimestamp: Timestamp? = null,
-    val unreadCount: Int = 0
+    val unreadCount: Int = 0,
+    val status: String = "",
+    val deletedBy: List<String> = emptyList()
 )

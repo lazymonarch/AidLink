@@ -86,6 +86,7 @@ export const handleRequestActions = onDocumentCreated(
                 status: "in_progress",
                 responderId: helperId,
                 responderName: responderName,
+                participants: [requesterId, helperId],
             });
             const chatRef = db.collection("chats").doc(requestId);
             transaction.set(chatRef, {
@@ -116,6 +117,7 @@ export const handleRequestActions = onDocumentCreated(
                 status: "open",
                 responderId: null,
                 responderName: null,
+                participants: FieldValue.delete(), 
             });
             if (chatDoc && chatDoc.exists) {
                 const cancelMessage = "The requester has canceled this job. The request is now open for other helpers.";
@@ -308,6 +310,54 @@ export const cleanupUserData = onDocumentDeleted(
 
         } catch (error) {
             logger.error(`❌ [ERROR] Failed during cleanup for user ${userId}:`, error);
+        }
+    }
+);
+
+/**
+ * Checks chat documents on update. If both participants have "deleted" the chat,
+ * it performs a hard delete on the chat and its 'messages' subcollection.
+ */
+export const handleChatDeletion = onDocumentWritten(
+    "chats/{chatId}",
+    async (event) => {
+        const afterData = event.data?.after.data();
+        const chatId = event.params.chatId;
+
+        // Exit if the document was just created or doesn't have the necessary fields
+        if (!afterData || !afterData.participants || !afterData.deletedBy) {
+            return;
+        }
+
+        const participants = afterData.participants;
+        const deletedBy = afterData.deletedBy;
+
+        // Check if the number of users who deleted the chat is equal to or greater than the number of participants
+        if (deletedBy.length >= participants.length) {
+            logger.info(`[HARD DELETE] Both users have deleted chat ${chatId}. Cleaning up.`);
+            
+            const chatRef = db.collection("chats").doc(chatId);
+            const messagesRef = chatRef.collection("messages");
+
+            try {
+                // Delete the 'messages' subcollection first
+                const messagesSnapshot = await messagesRef.get();
+                if (!messagesSnapshot.empty) {
+                    const batch = db.batch();
+                    messagesSnapshot.docs.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    await batch.commit();
+                    logger.info(`[HARD DELETE] Deleted ${messagesSnapshot.size} messages for chat ${chatId}.`);
+                }
+
+                // Finally, delete the parent chat document
+                await chatRef.delete();
+                logger.info(`✅ [HARD DELETE] Successfully deleted chat document ${chatId}.`);
+
+            } catch (error) {
+                logger.error(`❌ [ERROR] Failed during hard delete for chat ${chatId}:`, error);
+            }
         }
     }
 );

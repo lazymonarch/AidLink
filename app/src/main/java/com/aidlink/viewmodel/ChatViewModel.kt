@@ -59,6 +59,12 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun deleteChat(chatId: String) {
+        viewModelScope.launch {
+            repository.hideChatForCurrentUser(chatId)
+        }
+    }
+
     fun markJobAsFinished() {
         val request = _currentRequest.value ?: return
         viewModelScope.launch {

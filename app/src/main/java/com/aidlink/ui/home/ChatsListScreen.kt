@@ -1,5 +1,10 @@
 package com.aidlink.ui.home
 
+import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,12 +14,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,17 +43,66 @@ fun ChatsListScreen(
 ) {
     val chats by chatViewModel.chats.collectAsState()
     val currentUser = Firebase.auth.currentUser
+    var isInDeleteMode by remember { mutableStateOf(false) }
+    var selectedChats by remember { mutableStateOf(setOf<String>()) }
+    val hasCompletedChats = chats.any { it.status == "completed" }
+    LaunchedEffect(hasCompletedChats) {
+        if (!hasCompletedChats) {
+            isInDeleteMode = false
+        }
+    }
 
     Scaffold(
         containerColor = Color.Black,
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Chats", fontWeight = FontWeight.Bold) },
+                actions = {
+                    if (hasCompletedChats) {
+                        IconButton(onClick = { isInDeleteMode = !isInDeleteMode }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Select Chats to Delete"
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Black,
-                    titleContentColor = Color.White
+                    titleContentColor = Color.White,
+                    actionIconContentColor = Color.White
                 )
             )
+        },
+
+        bottomBar = {
+            AnimatedVisibility(
+                visible = isInDeleteMode,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                BottomAppBar(
+                    containerColor = Color.Black
+                ) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    Button(
+                        onClick = {
+                            selectedChats.forEach { chatId ->
+                                chatViewModel.deleteChat(chatId)
+                            }
+                            selectedChats = setOf()
+                            isInDeleteMode = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        enabled = selectedChats.isNotEmpty()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Delete (${selectedChats.size})")
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     ) { innerPadding ->
         LazyColumn(
@@ -62,8 +116,20 @@ fun ChatsListScreen(
                 ChatItemRow(
                     chat = chat,
                     otherUserName = otherUserName,
+                    isInDeleteMode = isInDeleteMode,
+                    isSelected = chat.id in selectedChats,
                     onItemClick = {
-                        onChatClicked(chat.id, otherUserName)
+                        if (isInDeleteMode) {
+                            if (chat.status == "completed") {
+                                selectedChats = if (chat.id in selectedChats) {
+                                    selectedChats - chat.id
+                                } else {
+                                    selectedChats + chat.id
+                                }
+                            }
+                        } else {
+                            onChatClicked(chat.id, otherUserName)
+                        }
                     }
                 )
             }
@@ -76,8 +142,23 @@ fun ChatsListScreen(
 fun ChatItemRow(
     chat: Chat,
     otherUserName: String,
+    isInDeleteMode: Boolean,
+    isSelected: Boolean,
     onItemClick: () -> Unit
 ) {
+    val borderColor = when (chat.status) {
+        "in_progress" -> Color.Green
+        "pending_completion" -> Color(0xFFFFC107)
+        "completed" -> Color.Red
+        else -> Color.Transparent
+    }
+
+    val backgroundColor = if (isSelected) {
+        Color(0xFF3A3A3C)
+    } else {
+        Color(0xFF1C1C1E)
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -88,8 +169,9 @@ fun ChatItemRow(
                 onClick = onItemClick
             ),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-        border = BorderStroke(2.dp, Color.Transparent) // Border logic removed for simplicity
+        // FIX: Apply the dynamic background color here
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        border = BorderStroke(2.dp, borderColor)
     ) {
         Row(
             modifier = Modifier
@@ -97,6 +179,18 @@ fun ChatItemRow(
                 .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            AnimatedVisibility(
+                visible = isInDeleteMode,
+                enter = fadeIn(animationSpec = tween(durationMillis = 500)),
+                exit =fadeOut(animationSpec = tween(durationMillis = 200))
+            ) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onItemClick() },
+                    enabled = chat.status == "completed"
+                )
+            }
+
             Box {
                 Box(
                     modifier = Modifier
