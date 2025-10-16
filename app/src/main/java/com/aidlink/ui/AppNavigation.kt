@@ -32,7 +32,17 @@ fun AppNavigation() {
     val homeViewModel: HomeViewModel = hiltViewModel()
     val myActivityViewModel: MyActivityViewModel = hiltViewModel()
 
+    val deepLinkInfo by appNavViewModel.deepLinkInfo.collectAsState()
     val currentUser by appNavViewModel.repository.getAuthStateFlow().collectAsState(initial = Firebase.auth.currentUser)
+
+
+    LaunchedEffect(deepLinkInfo) {
+        deepLinkInfo?.let {
+            navController.navigate("chat/${it.chatId}/${it.userName}")
+            // Consume the event so it doesn't trigger again (e.g., on screen rotation)
+            appNavViewModel.consumeDeepLink()
+        }
+    }
 
     LaunchedEffect(currentUser) {
         if (currentUser == null) {

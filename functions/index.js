@@ -1,5 +1,6 @@
 import { onDocumentCreated, onDocumentWritten, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import { initializeApp } from "firebase-admin/app";
+import { getMessaging } from "firebase-admin/messaging";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { logger } from "firebase-functions";
@@ -80,29 +81,29 @@ export const handleRequestActions = onDocumentCreated(
             if (!requesterProfileDoc.exists || !responderProfileDoc.exists) {
                 throw new Error("Requester or chosen responder profile not found.");
             }
-            const requesterName = requesterProfileDoc.data().name;
-            const responderName = responderProfileDoc.data().name;
+            const requesterData = requesterProfileDoc.data();
+            const responderData = responderProfileDoc.data();
             transaction.update(requestRef, {
                 status: "in_progress",
                 responderId: helperId,
-                responderName: responderName,
+                responderName: responderData.name, 
                 participants: [requesterId, helperId],
             });
             const chatRef = db.collection("chats").doc(requestId);
             transaction.set(chatRef, {
                 participants: [requesterId, helperId],
                 participantInfo: {
-                    [requesterId]: { name: requesterName },
-                    [helperId]: { name: responderName }
+                    [requesterId]: { name: requesterData.name, photoUrl: requesterData.photoUrl || "" },
+                    [helperId]: { name: responderData.name, photoUrl: responderData.photoUrl || "" }
                 },
                 createdAt: FieldValue.serverTimestamp(),
-                lastMessage: `${requesterName} accepted the offer! You can now chat.`,
+                lastMessage: `${requesterData.name} accepted the offer! You can now chat.`,
                 lastMessageTimestamp: FieldValue.serverTimestamp(),
             });
             const initialMessageRef = chatRef.collection("messages").doc();
             transaction.set(initialMessageRef, {
                 senderId: "system",
-                text: `${requesterName} accepted the offer! You can now chat.`,
+                text: `${requesterData.name} accepted the offer! You can now chat.`,
                 timestamp: FieldValue.serverTimestamp(),
             });
         }
@@ -358,6 +359,74 @@ export const handleChatDeletion = onDocumentWritten(
             } catch (error) {
                 logger.error(`❌ [ERROR] Failed during hard delete for chat ${chatId}:`, error);
             }
+        }
+    }
+);
+
+/**
+ * Sends a push notification to a user when they receive a new message.
+ */
+export const sendNewMessageNotification = onDocumentCreated(
+    "chats/{chatId}/messages/{messageId}",
+    async (event) => {
+        const messageData = event.data.data();
+        const chatId = event.params.chatId;
+
+        // Exit if the message is a system message
+        if (messageData.senderId === "system") {
+            logger.info(`[FCM] System message detected in chat ${chatId}. No notification sent.`);
+            return;
+        }
+
+        try {
+            // Get the chat document to find the participants
+            const chatRef = db.collection("chats").doc(chatId);
+            const chatDoc = await chatRef.get();
+            if (!chatDoc.exists) {
+                logger.error(`[FCM] Chat document ${chatId} not found.`);
+                return;
+            }
+            const chatData = chatDoc.data();
+            const senderId = messageData.senderId;
+
+            // Determine the recipient's ID
+            const recipientId = chatData.participants.find(id => id !== senderId);
+            if (!recipientId) {
+                logger.warn(`[FCM] Could not find a recipient in chat ${chatId}.`);
+                return;
+            }
+
+            // Get the recipient's user profile to find their FCM token
+            const userRef = db.collection("users").doc(recipientId);
+            const userDoc = await userRef.get();
+            if (!userDoc.exists || !userDoc.data().fcmToken) {
+                logger.warn(`[FCM] Recipient ${recipientId} does not have an FCM token.`);
+                return;
+            }
+            const recipientToken = userDoc.data().fcmToken;
+
+            // Get the sender's name from the chat document
+            const senderName = chatData.participantInfo[senderId]?.name || "Someone";
+            
+            // Construct the notification payload
+            const payload = {
+                notification: {
+                    title: `New message from ${senderName}`,
+                    body: messageData.text,
+                },
+                token: recipientToken,
+                data: { // Optional: send data to handle clicks in the app
+                    chatId: chatId,
+                    senderName: senderName
+                }
+            };
+            
+            // Send the notification
+            await getMessaging().send(payload);
+            logger.info(`[FCM] Successfully sent notification to user ${recipientId}.`);
+
+        } catch (error) {
+            logger.error(`[FCM] ❌ Error sending new message notification for chat ${chatId}:`, error);
         }
     }
 );

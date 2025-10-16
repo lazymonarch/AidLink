@@ -9,5 +9,6 @@ data class UserProfile(
     val skills: List<String> = emptyList(),
     val requestsPosted: Int = 0,
     val helpsCompleted: Int = 0,
-    val photoUrl: String = ""
+    val photoUrl: String = "",
+    val fcmToken: String = ""
 )

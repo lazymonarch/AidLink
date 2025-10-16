@@ -1,6 +1,5 @@
 package com.aidlink.ui.home
 
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -24,10 +23,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.aidlink.model.Chat
 import com.aidlink.viewmodel.ChatViewModel
 import com.google.firebase.auth.ktx.auth
@@ -111,11 +114,14 @@ fun ChatsListScreen(
         ) {
             items(chats, key = { it.id }) { chat ->
                 val otherUserId = chat.participants.firstOrNull { it != currentUser?.uid } ?: ""
-                val otherUserName = chat.participantInfo[otherUserId]?.get("name") ?: "Unknown User"
+                val otherUserInfo = chat.participantInfo[otherUserId]
+                val otherUserName = otherUserInfo?.get("name") ?: "Unknown User"
+                val otherUserPhotoUrl = otherUserInfo?.get("photoUrl") ?: ""
 
                 ChatItemRow(
                     chat = chat,
                     otherUserName = otherUserName,
+                    otherUserPhotoUrl = otherUserPhotoUrl,
                     isInDeleteMode = isInDeleteMode,
                     isSelected = chat.id in selectedChats,
                     onItemClick = {
@@ -137,11 +143,11 @@ fun ChatsListScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatItemRow(
     chat: Chat,
     otherUserName: String,
+    otherUserPhotoUrl: String,
     isInDeleteMode: Boolean,
     isSelected: Boolean,
     onItemClick: () -> Unit
@@ -169,7 +175,6 @@ fun ChatItemRow(
                 onClick = onItemClick
             ),
         shape = RoundedCornerShape(12.dp),
-        // FIX: Apply the dynamic background color here
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         border = BorderStroke(2.dp, borderColor)
     ) {
@@ -191,14 +196,18 @@ fun ChatItemRow(
                 )
             }
 
-            Box {
-                Box(
-                    modifier = Modifier
-                        .size(50.dp)
-                        .clip(CircleShape)
-                        .background(Color.Gray)
-                )
-            }
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(otherUserPhotoUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = "Profile Picture of $otherUserName",
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(CircleShape)
+                    .background(Color.DarkGray),
+                contentScale = ContentScale.Crop
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
