@@ -11,7 +11,7 @@ import com.aidlink.ui.AppNavigation
 import com.aidlink.ui.theme.AidLinkTheme
 import dagger.hilt.android.AndroidEntryPoint
 
-@AndroidEntryPoint // ADD THIS ANNOTATION
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

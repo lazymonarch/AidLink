@@ -82,7 +82,6 @@ fun OtpVerificationScreen(
                     .padding(innerPadding)
                     .padding(horizontal = 24.dp)
             ) {
-                // --- Top part of the screen (unchanged) ---
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -126,22 +125,18 @@ fun OtpVerificationScreen(
                         .align(Alignment.BottomCenter)
                         .padding(vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp) // Adds space between error and button
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Error message will appear here, above the button
                     if (uiState is AuthUiState.Error) {
                         Text(
                             text = (uiState as AuthUiState.Error).message,
                             color = MaterialTheme.colorScheme.error,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.height(24.dp) // Reserve space for the message
+                            modifier = Modifier.height(24.dp)
                         )
                     } else {
-                        // Keep the layout consistent by adding a spacer when there's no error
                         Spacer(modifier = Modifier.height(24.dp))
                     }
-
-                    // The Verify button remains here
                     Button(
                         onClick = { authViewModel.verifyOtp(verificationId, otpValue) },
                         modifier = Modifier
@@ -182,7 +177,6 @@ fun OtpVerificationScreen(
     }
 }
 
-// --- OtpInputField and Preview functions remain unchanged ---
 @Composable
 private fun OtpInputField(
     modifier: Modifier = Modifier,

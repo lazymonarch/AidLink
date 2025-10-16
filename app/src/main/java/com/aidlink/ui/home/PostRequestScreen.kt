@@ -42,14 +42,12 @@ fun PostRequestScreen(
     val categories = listOf("Home & Garden", "Moving & Delivery", "Tech Support", "Pet Care", "Other")
     var selectedCategory by remember { mutableStateOf(categories[0]) }
     var selectedCompensation by remember { mutableStateOf("Fee") }
-
-    // FIXED: Use the new postRequestUiState
     val postRequestUiState by homeViewModel.postRequestUiState.collectAsState()
 
     LaunchedEffect(key1 = postRequestUiState) {
         if (postRequestUiState is PostRequestUiState.Success) {
             onPostRequestSuccess()
-            homeViewModel.resetPostRequestState() // FIXED: Call the correct reset function
+            homeViewModel.resetPostRequestState()
         }
     }
 
@@ -162,7 +160,6 @@ private fun FormInput(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, color = textDark80, fontSize = 14.sp, fontWeight = FontWeight.Medium)
 
-        // --- CODE RESTORED BELOW ---
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,

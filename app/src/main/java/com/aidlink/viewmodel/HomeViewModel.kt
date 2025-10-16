@@ -41,7 +41,6 @@ class HomeViewModel @Inject constructor(
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // ✅ FIXED: Moved selectedRequest before offers to ensure it's initialized first.
     private val _selectedRequest = MutableStateFlow<HelpRequest?>(null)
     val selectedRequest: StateFlow<HelpRequest?> = _selectedRequest.asStateFlow()
 
@@ -64,9 +63,6 @@ class HomeViewModel @Inject constructor(
             _respondUiState.value = if (success) RespondUiState.Success else RespondUiState.Error("Failed to send offer.")
         }
     }
-
-    // ❌ REMOVED: This function is obsolete and has been replaced by onMakeOffer.
-    // fun onRespondToRequest(requestId: String) { ... }
 
     fun resetRespondState() {
         _respondUiState.value = RespondUiState.Idle

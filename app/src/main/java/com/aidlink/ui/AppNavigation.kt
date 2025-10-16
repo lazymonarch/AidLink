@@ -7,6 +7,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -18,11 +19,10 @@ import com.aidlink.ui.auth.OtpVerificationScreen
 import com.aidlink.ui.auth.ProfileSetupScreen
 import com.aidlink.ui.home.*
 import com.aidlink.ui.profile.EditProfileScreen
+import com.aidlink.ui.settings.SettingsScreen
 import com.aidlink.viewmodel.*
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.aidlink.ui.settings.SettingsScreen
 
 @Composable
 fun AppNavigation() {
@@ -31,7 +31,6 @@ fun AppNavigation() {
     val authViewModel: AuthViewModel = hiltViewModel()
     val homeViewModel: HomeViewModel = hiltViewModel()
     val myActivityViewModel: MyActivityViewModel = hiltViewModel()
-    val chatViewModel: ChatViewModel = hiltViewModel()
 
     val currentUser by appNavViewModel.repository.getAuthStateFlow().collectAsState(initial = Firebase.auth.currentUser)
 
@@ -61,7 +60,6 @@ fun AppNavigation() {
             startDestination = if (Firebase.auth.currentUser != null) "home" else "login",
             modifier = Modifier.padding(innerPadding)
         ) {
-            // --- Authentication Flow ---
             composable("login") {
                 LoginScreen(
                     authViewModel = authViewModel,
@@ -98,7 +96,6 @@ fun AppNavigation() {
                 )
             }
 
-            // --- Main App Flow ---
             composable("home") {
                 HomeScreen(
                     homeViewModel = homeViewModel,
@@ -120,6 +117,7 @@ fun AppNavigation() {
             }
 
             composable("chats") {
+                val chatViewModel: ChatViewModel = hiltViewModel()
                 ChatsListScreen(
                     chatViewModel = chatViewModel,
                     onChatClicked = { chatId, userName ->
@@ -188,7 +186,7 @@ fun AppNavigation() {
                     navArgument("userName") { type = NavType.StringType }
                 )
             ) { backStackEntry ->
-                val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
+                val chatViewModel: ChatViewModel = hiltViewModel()
                 val userName = backStackEntry.arguments?.getString("userName") ?: "Chat"
                 ChatScreen(
                     otherUserName = userName,

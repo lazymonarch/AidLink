@@ -28,14 +28,8 @@ class SettingsViewModel @Inject constructor(
     fun onDeleteAccountClicked() {
         viewModelScope.launch {
             _deleteAccountUiState.value = DeleteAccountUiState.Loading
-
-            // Note: In a production app, this is where you would force re-authentication.
-            // For now, we will proceed directly with the deletion.
-
             val success = repository.deleteUserAccount()
-
             _deleteAccountUiState.value = if (success) {
-                // The user's auth state will change, triggering a navigation to the login screen.
                 DeleteAccountUiState.Success
             } else {
                 DeleteAccountUiState.Error("Failed to delete account. Please try again.")

@@ -49,8 +49,6 @@ fun ProfileScreen(
     onNavigateToSettings: () -> Unit
 ) {
     val userProfile by profileViewModel.userProfile.collectAsState()
-
-    // This is placeholder data.
     val reviews = listOf<Review>()
 
     Scaffold(
@@ -85,7 +83,7 @@ fun ProfileScreen(
                     StatsSection(
                         helps = userProfile!!.helpsCompleted,
                         requests = userProfile!!.requestsPosted,
-                        rating = 4.8 // This is still hardcoded for now
+                        rating = 4.8
                     )
                 }
 
@@ -112,7 +110,7 @@ fun ProfileScreen(
                         ActionItem(
                             icon = Icons.Default.Settings,
                             text = "Settings",
-                            onClick = onNavigateToSettings // Trigger navigation
+                            onClick = onNavigateToSettings
                         )
                         HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(horizontal = 16.dp))
                         ActionItem(icon = Icons.AutoMirrored.Filled.HelpOutline, text = "Help & Support", onClick = { /* TODO */ })
@@ -178,11 +176,9 @@ private fun UserInfoSection(userProfile: UserProfile, onNavigateToEdit: () -> Un
         Spacer(modifier = Modifier.height(16.dp))
     }
 
-    // --- THIS IS THE CRITICAL FIX ---
-    // Replaced Row with FlowRow to allow skill tags to wrap to the next line.
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp), // Adds vertical space between rows of tags
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.padding(horizontal = 16.dp)
     ) {
         userProfile.skills.forEach { skill ->
@@ -196,7 +192,6 @@ private fun UserInfoSection(userProfile: UserProfile, onNavigateToEdit: () -> Un
             }
         }
     }
-    // --- END OF FIX ---
 }
 
 @Composable

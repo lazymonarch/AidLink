@@ -50,12 +50,9 @@ fun RequestDetailScreen(
         },
         bottomBar = {
             if (request != null && currentUser != null) {
-                // ✅ UI LOGIC: Show different bottom bar based on user role.
                 if (request!!.userId == currentUser.uid) {
-                    // This is the requester's view.
                     RequesterBottomBar(offers = offers, onAccept = { /* Handled in MyActivityScreen */ })
                 } else {
-                    // This is a potential helper's view.
                     val hasAlreadyOffered = offers.any { it.helperId == currentUser.uid }
                     HelperBottomBar(
                         uiState = uiState,

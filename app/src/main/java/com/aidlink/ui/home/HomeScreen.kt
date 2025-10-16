@@ -63,8 +63,6 @@ fun HomeScreen(
             }
         }
     ) { innerPadding ->
-
-        // The UI is now much simpler. No pull-to-refresh needed.
         Box(
             modifier = Modifier.padding(innerPadding)
         ) {
@@ -76,7 +74,6 @@ fun HomeScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // ✅ FIXED: Added a unique and stable key for each item.
                     items(items = requests, key = { it.id }) { request ->
                         HelpRequestCard(
                             request = request,
@@ -178,7 +175,6 @@ private fun InfoRow(icon: ImageVector, text: String, iconColor: Color = Color.Gr
 @Composable
 fun HomeScreenPreview() {
     AidLinkTheme(darkTheme = true) {
-        // Dummy viewmodel and functions for preview
         HomeScreen(
             homeViewModel = viewModel(),
             onPostRequestClicked = { },

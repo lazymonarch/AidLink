@@ -28,7 +28,6 @@ import com.google.firebase.ktx.Firebase
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
-    // The chatId is now passed to the ViewModel via SavedStateHandle, so it's not needed here directly.
     otherUserName: String,
     chatViewModel: ChatViewModel,
     onBackClicked: () -> Unit

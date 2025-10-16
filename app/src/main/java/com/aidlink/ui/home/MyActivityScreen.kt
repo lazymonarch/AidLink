@@ -27,7 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
@@ -58,18 +58,15 @@ fun MyActivityScreen(
     val myRequests by myActivityViewModel.myRequests.collectAsState()
     val myResponses by myActivityViewModel.myResponses.collectAsState()
     val completedRequests by myActivityViewModel.completedRequests.collectAsState()
-
-    // ✅ Simplified state: We only need to know which request is being managed.
     var managingRequest by remember { mutableStateOf<HelpRequest?>(null) }
 
-    // ✅ This is the new, unified dialog that handles all cases.
     if (managingRequest != null) {
         ManageRequestDialog(
             request = managingRequest!!,
             onDismiss = { managingRequest = null },
             onAcceptOffer = { offer ->
                 myActivityViewModel.onAcceptOffer(managingRequest!!.id, offer.helperId)
-                managingRequest = null // Close dialog on success
+                managingRequest = null
             },
             onDelete = {
                 myActivityViewModel.onDeleteRequest(managingRequest!!.id)
@@ -142,7 +139,6 @@ fun MyActivityScreen(
                                 request = request,
                                 currentUser = currentUser,
                                 onClick = {
-                                    // ✅ Simplified logic: If the user owns the request, open the management dialog.
                                     if (request.userId == currentUser?.uid) {
                                         managingRequest = request
                                     } else if (request.status in listOf("in_progress", "completed", "pending_completion")) {
@@ -158,8 +154,6 @@ fun MyActivityScreen(
     }
 }
 
-
-// ✅ --- THIS IS THE NEW, UNIFIED DIALOG COMPOSABLE ---
 @Composable
 fun ManageRequestDialog(
     request: HelpRequest,
@@ -169,9 +163,8 @@ fun ManageRequestDialog(
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
     onNavigateToEdit: (String) -> Unit,
-    homeViewModel: HomeViewModel = hiltViewModel() // Inject ViewModel to fetch offers
+    homeViewModel: HomeViewModel = hiltViewModel()
 ) {
-    // Fetch offers only when this dialog is for an 'open' request
     LaunchedEffect(request.id) {
         if (request.status == "open") {
             homeViewModel.getRequestById(request.id)
@@ -185,7 +178,6 @@ fun ManageRequestDialog(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
-                // --- DIALOG TITLE ---
                 Text(
                     text = when (request.status) {
                         "open" -> "Manage Your Request"
@@ -200,10 +192,8 @@ fun ManageRequestDialog(
                     textAlign = TextAlign.Center
                 )
 
-                // --- CONDITIONAL CONTENT BASED ON STATUS ---
                 when (request.status) {
                     "open" -> {
-                        // --- Section 1: Offers List ---
                         Text("Offers Received", color = Color.Gray, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(8.dp))
                         if (offers.isEmpty()) {
@@ -221,7 +211,6 @@ fun ManageRequestDialog(
                             }
                         }
                         Spacer(modifier = Modifier.height(24.dp))
-                        // --- Section 2: Action Buttons ---
                         OpenRequestActions(
                             onDelete = onDelete,
                             onEdit = { onNavigateToEdit(request.id) }
@@ -244,7 +233,6 @@ fun ManageRequestDialog(
         }
     }
 }
-// --- END OF NEW DIALOG ---
 
 
 @Composable

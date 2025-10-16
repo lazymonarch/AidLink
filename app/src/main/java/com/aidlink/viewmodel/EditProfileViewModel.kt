@@ -56,11 +56,8 @@ class EditProfileViewModel @Inject constructor(
                 return@launch
             }
 
-            // Convert the skills string into a list
             val skillList = skills.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-
             val success = repository.updateUserProfile(uid, name, bio, skillList, area, imageUri)
-
             _editProfileUiState.value = if (success) {
                 EditProfileUiState.Success
             } else {

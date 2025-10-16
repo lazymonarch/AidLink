@@ -123,7 +123,6 @@ fun ChatItemRow(
                     SimpleDateFormat("hh:mm a", Locale.getDefault()).format(it)
                 } ?: ""
                 Text(text = formattedTimestamp, color = Color.Gray, fontSize = 12.sp)
-                // Unread count logic can be re-added later if needed
             }
         }
     }

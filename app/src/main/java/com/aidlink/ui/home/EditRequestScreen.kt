@@ -35,8 +35,6 @@ fun EditRequestScreen(
     var selectedCategory by remember { mutableStateOf(categories[0]) }
     var selectedCompensation by remember { mutableStateOf("Fee") }
 
-    // This effect will run once when the request data is loaded from the ViewModel,
-    // pre-filling the input fields with the existing data.
     LaunchedEffect(request) {
         request?.let {
             title = it.title
@@ -116,8 +114,6 @@ fun EditRequestScreen(
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
-                // Re-using the same input composable from PostRequestScreen would be ideal here
-                // For now, we define them locally for clarity.
                 FormInput(label = "Title", value = title, onValueChange = { title = it })
                 FormInput(label = "Description", value = description, onValueChange = { description = it }, singleLine = false, modifier = Modifier.height(120.dp))
                 CategoryDropdown(label = "Category", items = categories, selectedItem = selectedCategory, onItemSelected = { selectedCategory = it })
@@ -128,8 +124,6 @@ fun EditRequestScreen(
     }
 }
 
-// NOTE: These are helper composable, identical to the ones in PostRequestScreen.
-// In a real project, you would move these to a common file to avoid code duplication.
 @Composable
 private fun FormInput(label: String, value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier, singleLine: Boolean = true) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -144,13 +144,6 @@ class AuthRepository(
             }
         awaitClose { listener.remove() }
     }
-
-    // ✅ --- ADD THIS ENTIRE NEW FUNCTION ---
-    /**
-     * Updates the user's profile. If a new image URI is provided, it uploads the image
-     * to Firebase Storage first, gets the download URL, and then updates the Firestore document.
-     * If the image URI is null, it only updates the text fields in Firestore.
-     */
     suspend fun updateUserProfile(
         uid: String,
         name: String,
@@ -161,23 +154,14 @@ class AuthRepository(
     ): Boolean {
         Log.d(tag, "Attempting to update profile for user: $uid")
         return try {
-            var photoUrl = "" // Default to empty string
-
-            // Step 1: Upload image to Firebase Storage if a new one is provided
+            var photoUrl = ""
             if (imageUri != null) {
                 Log.d(tag, "New image provided. Uploading to Firebase Storage...")
-                // Create a reference to 'profile_images/[user_id].jpg'
                 val photoRef = storage.reference.child("profile_images/$uid.jpg")
-
-                // Upload the file and wait for the result
                 photoRef.putFile(imageUri).await()
-
-                // Get the public download URL for the uploaded image
                 photoUrl = photoRef.downloadUrl.await().toString()
                 Log.i(tag, "Image uploaded successfully. URL: $photoUrl")
             }
-
-            // Step 2: Prepare the data to update in Firestore
             val userProfileRef = db.collection("users").document(uid)
             val updates = mutableMapOf<String, Any>(
                 "name" to name,
@@ -185,7 +169,6 @@ class AuthRepository(
                 "skills" to skills,
                 "area" to area
             )
-            // Only add the photoUrl to the map if it's not empty
             if (photoUrl.isNotEmpty()) {
                 updates["photoUrl"] = photoUrl
             }

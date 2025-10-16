@@ -49,16 +49,11 @@ class MyActivityViewModel @Inject constructor(
             repository.acceptOffer(requestId, helperId)
         }
     }
-
-    // ---
-    // --- THIS IS THE CRITICAL FIX ---
-    // This function now correctly calls the repository to delete the request.
     fun onDeleteRequest(requestId: String) {
         viewModelScope.launch {
             repository.deleteRequest(requestId)
         }
     }
-    // --- END OF FIX ---
 
     fun onCancelRequest(requestId: String) {
         viewModelScope.launch {
