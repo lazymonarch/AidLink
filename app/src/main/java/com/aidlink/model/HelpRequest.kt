@@ -15,6 +15,7 @@ data class HelpRequest(
     val description: String = "",
     val category: String = "",
     val location: String = "",
+    val compensation: String = "",
     val type: RequestType = RequestType.FEE,
     val status: String = "open",
     val offerCount: Int = 0,

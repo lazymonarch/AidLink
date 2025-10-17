@@ -3,11 +3,11 @@
   <component name="deploymentTargetSelector">
     <selectionStates>
       <SelectionState runConfigName="AidLink">
-        <option name="selectionMode" value="DIALOG" />
-        <DropdownSelection timestamp="2025-10-15T08:20:46.304025Z">
+        <option name="selectionMode" value="DROPDOWN" />
+        <DropdownSelection timestamp="2025-10-17T17:54:26.428222Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=c7dd88a7" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=/Users/lakshan/.android/avd/Medium_Phone.avd" />
             </handle>
           </Target>
         </DropdownSelection>
@@ -15,7 +15,7 @@
           <targets>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="PhysicalDevice" identifier="serial=f00aff9a" />
+                <DeviceId pluginId="LocalEmulator" identifier="path=/Users/lakshan/.android/avd/Medium_Phone.avd" />
               </handle>
             </Target>
             <Target type="DEFAULT_BOOT">

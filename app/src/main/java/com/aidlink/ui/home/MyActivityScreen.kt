@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -139,9 +140,12 @@ fun MyActivityScreen(
                                 request = request,
                                 currentUser = currentUser,
                                 onClick = {
-                                    if (request.userId == currentUser?.uid) {
+                                    if (request.status == "completed" || request.status == "pending_completion") {
                                         managingRequest = request
-                                    } else if (request.status in listOf("in_progress", "completed", "pending_completion")) {
+                                    }
+                                    else if (request.userId == currentUser?.uid) {
+                                        managingRequest = request
+                                    } else if (request.status == "in_progress") {
                                         onNavigateToChat(request.id, request.userName)
                                     }
                                 }
@@ -203,7 +207,7 @@ fun ManageRequestDialog(
                         } else {
                             LazyColumn(
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.heightIn(max = 200.dp) // prevent dialog from getting too tall
+                                modifier = Modifier.heightIn(max = 200.dp)
                             ) {
                                 items(offers) { offer ->
                                     OfferItemRow(offer = offer, onAccept = { onAcceptOffer(offer) })
@@ -227,6 +231,9 @@ fun ManageRequestDialog(
                     }
                     "pending_completion" -> {
                         PendingApprovalActions(onConfirm = onConfirm)
+                    }
+                    else -> {
+                        CompletedRequestDetails(request = request)
                     }
                 }
             }
@@ -295,6 +302,77 @@ fun ActivityItemRow(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun CompletedRequestDetails(request: HelpRequest) {
+    @Composable
+    fun DetailRow(icon: ImageVector, label: String, value: String) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = Color.Gray,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(label, color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(value, color = Color.White, fontSize = 16.sp)
+            }
+        }
+    }
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(
+            text = request.title,
+            color = Color.White,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Text(
+            text = request.description,
+            color = Color.LightGray,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+
+        HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
+        DetailRow(
+            icon = Icons.Default.Person,
+            label = "Helped By",
+            value = request.responderName ?: "N/A"
+        )
+        DetailRow(
+            icon = Icons.Default.DateRange,
+            label = "Completed On",
+            value = formatTimestamp(request.timestamp)
+        )
+        val compensationText = if (request.compensation.lowercase() == "volunteer") {
+            "Volunteer"
+        } else {
+            "Fee"
+        }
+
+        val compensationIcon = if (request.compensation.lowercase() == "volunteer") {
+            Icons.Default.Favorite
+        } else {
+            Icons.Default.AttachMoney
+        }
+
+        DetailRow(
+            icon = compensationIcon,
+            label = "Compensation",
+            value = compensationText
+        )
+
+        HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f), modifier = Modifier.padding(top = 8.dp)) // FIX 2: Renamed from Divider
     }
 }
 
