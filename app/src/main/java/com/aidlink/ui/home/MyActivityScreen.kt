@@ -136,20 +136,48 @@ fun MyActivityScreen(
                 } else {
                     LazyColumn(contentPadding = PaddingValues(16.dp)) {
                         items(items = listToShow, key = { it.id }) { request ->
-                            ActivityItemRow(
-                                request = request,
-                                currentUser = currentUser,
-                                onClick = {
-                                    if (request.status == "completed" || request.status == "pending_completion") {
-                                        managingRequest = request
+                            // --- START OF MODIFICATION ---
+                            Column {
+                                ActivityItemRow(
+                                    request = request,
+                                    currentUser = currentUser,
+                                    onClick = {
+                                        if (request.status == "completed" || request.status == "pending_completion") {
+                                            managingRequest = request
+                                        } else if (request.userId == currentUser?.uid) {
+                                            managingRequest = request
+                                        } else if (request.status == "in_progress") {
+                                            onNavigateToChat(request.id, request.userName)
+                                        }
                                     }
-                                    else if (request.userId == currentUser?.uid) {
-                                        managingRequest = request
-                                    } else if (request.status == "in_progress") {
-                                        onNavigateToChat(request.id, request.userName)
+                                )
+
+                                // Show "Leave Feedback" button if review is pending
+                                if (page == 2 && request.reviewStatus[currentUser?.uid] == "pending") {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            val isCurrentUserTheRequester = request.userId == currentUser?.uid
+                                            val revieweeId = if (isCurrentUserTheRequester) {
+                                                request.responderId ?: ""
+                                            } else {
+                                                request.userId
+                                            }
+                                            val isHelperReviewing = !isCurrentUserTheRequester
+
+                                            if (revieweeId.isNotEmpty()) {
+                                                navController.navigate("review/${request.id}/$revieweeId/$isHelperReviewing")
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(Icons.Default.RateReview, contentDescription = null, modifier = Modifier.size(20.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Leave Feedback")
                                     }
                                 }
-                            )
+                            }
+                            // --- END OF MODIFICATION ---
                         }
                     }
                 }
@@ -158,6 +186,7 @@ fun MyActivityScreen(
     }
 }
 
+// ... (The rest of your code from ManageRequestDialog downwards remains unchanged)
 @Composable
 fun ManageRequestDialog(
     request: HelpRequest,
@@ -271,7 +300,7 @@ fun ActivityItemRow(
             .padding(vertical = 8.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true),
+                indication = rememberRipple(),
                 onClick = onClick
             ),
         shape = RoundedCornerShape(12.dp),

@@ -430,3 +430,110 @@ export const sendNewMessageNotification = onDocumentCreated(
         }
     }
 );
+
+/**
+ * Triggers when a request's status is updated. If it's marked "completed",
+ * it kicks off the review process for both the requester and the helper.
+ */
+export const onRequestCompleted = onDocumentWritten("requests/{requestId}", async (event) => {
+    const change = event.data;
+    if (!change || !change.before || !change.after) {
+        logger.info("[Review] No change data found.");
+        return;
+    }
+
+    const beforeStatus = change.before.data().status;
+    const afterStatus = change.after.data().status;
+    const requestData = change.after.data();
+
+    // Trigger only when status changes TO "completed"
+    if (beforeStatus !== "completed" && afterStatus === "completed") {
+        const requestId = event.params.requestId;
+        const requesterId = requestData.userId;
+        const helperId = requestData.responderId;
+        const requesterName = requestData.userName;
+        const helperName = requestData.responderName;
+
+        logger.info(`[Review] Request ${requestId} completed. Initiating review process.`);
+
+        // 1. Update the request with the initial review status
+        await db.collection("requests").doc(requestId).update({
+            reviewStatus: {
+                [requesterId]: "pending",
+                [helperId]: "pending",
+            },
+        });
+
+        // 2. Send push notifications to both users
+        const requesterTokenDoc = await db.collection("users").doc(requesterId).get();
+        const helperTokenDoc = await db.collection("users").doc(helperId).get();
+
+        if (requesterTokenDoc.exists && requesterTokenDoc.data().fcmToken) {
+            await getMessaging().send({
+                token: requesterTokenDoc.data().fcmToken,
+                notification: {
+                    title: "How was your experience?",
+                    body: `Leave feedback for ${helperName} to earn Trust Badges!`,
+                },
+                data: {
+                    screen: "review",
+                    requestId: requestId,
+                    revieweeId: helperId, // The person they are reviewing
+                },
+            });
+        }
+
+        if (helperTokenDoc.exists && helperTokenDoc.data().fcmToken) {
+            await getMessaging().send({
+                token: helperTokenDoc.data().fcmToken,
+                notification: {
+                    title: "How was your experience?",
+                    body: `Leave feedback for ${requesterName} to earn Trust Badges!`,
+                },
+                data: {
+                    screen: "review",
+                    requestId: requestId,
+                    revieweeId: requesterId, // The person they are reviewing
+                },
+            });
+        }
+    }
+});
+
+
+/**
+ * Triggers when a new review is created. It updates the recipient's
+ * profile with the new trust badges.
+ */
+export const onReviewCreated = onDocumentCreated("reviews/{reviewId}", async (event) => {
+    const reviewSnap = event.data;
+    if (!reviewSnap) {
+        logger.warn("[Review] Review document data is missing.");
+        return;
+    }
+
+    const reviewData = reviewSnap.data();
+    const { revieweeId, badges, requestId, reviewerId } = reviewData;
+
+    logger.info(`[Review] New review created for user ${revieweeId}.`);
+
+    // 1. Update the user's profile with the new badges
+    const userRef = db.collection("users").doc(revieweeId);
+    const transactionUpdates = {};
+    badges.forEach((badge) => {
+        transactionUpdates[`trustBadges.${badge}`] = FieldValue.increment(1);
+    });
+
+    await db.runTransaction(async (transaction) => {
+        transaction.update(userRef, transactionUpdates);
+    });
+
+
+    // 2. Update the review status on the original request
+    const requestRef = db.collection("requests").doc(requestId);
+    await requestRef.update({
+        [`reviewStatus.${reviewerId}`]: "completed",
+    });
+
+    logger.info(`[Review] Successfully updated badges for user ${revieweeId}.`);
+});

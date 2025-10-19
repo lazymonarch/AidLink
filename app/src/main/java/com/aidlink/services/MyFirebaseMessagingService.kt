@@ -41,21 +41,20 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         val title = remoteMessage.notification?.title
         val body = remoteMessage.notification?.body
-        val chatId = remoteMessage.data["chatId"]
-        val senderName = remoteMessage.data["senderName"]
 
-        Log.d("FCM", "Message Received. Chat ID: $chatId, Title: $title")
-        sendNotification(title, body, chatId, senderName)
+        Log.d("FCM", "Message Received. Data payload: ${remoteMessage.data}")
+        sendNotification(title, body, remoteMessage.data)
     }
 
-    private fun sendNotification(title: String?, messageBody: String?, chatId: String?, senderName: String?) {
+    private fun sendNotification(title: String?, messageBody: String?, data: Map<String, String>) {
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            putExtra("chatId", chatId)
-            putExtra("userName", senderName)
+            for ((key, value) in data) {
+                putExtra(key, value)
+            }
         }
 
-        val pendingIntent = PendingIntent.getActivity(this, 0, intent,
+        val pendingIntent = PendingIntent.getActivity(this, System.currentTimeMillis().toInt(), intent,
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE)
 
         val channelId = "fcm_default_channel"

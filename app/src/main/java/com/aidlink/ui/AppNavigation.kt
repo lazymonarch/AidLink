@@ -32,15 +32,29 @@ fun AppNavigation() {
     val homeViewModel: HomeViewModel = hiltViewModel()
     val myActivityViewModel: MyActivityViewModel = hiltViewModel()
 
-    val deepLinkInfo by appNavViewModel.deepLinkInfo.collectAsState()
+    val chatDeepLinkInfo by appNavViewModel.chatDeepLinkInfo.collectAsState()
+    val reviewDeepLinkInfo by appNavViewModel.reviewDeepLinkInfo.collectAsState()
     val currentUser by appNavViewModel.repository.getAuthStateFlow().collectAsState(initial = Firebase.auth.currentUser)
 
 
-    LaunchedEffect(deepLinkInfo) {
-        deepLinkInfo?.let {
+    LaunchedEffect(chatDeepLinkInfo) {
+        chatDeepLinkInfo?.let {
             navController.navigate("chat/${it.chatId}/${it.userName}")
-            // Consume the event so it doesn't trigger again (e.g., on screen rotation)
             appNavViewModel.consumeDeepLink()
+        }
+    }
+
+    LaunchedEffect(reviewDeepLinkInfo) {
+        reviewDeepLinkInfo?.let { deepLink ->
+            val user = currentUser
+            val request = appNavViewModel.repository.getRequestById(deepLink.requestId)
+
+            if (request != null && user != null) {
+                val isHelper = request.responderId == user.uid
+
+                navController.navigate("review/${deepLink.requestId}/${deepLink.revieweeId}/$isHelper")
+                appNavViewModel.consumeDeepLink()
+            }
         }
     }
 
@@ -205,6 +219,25 @@ fun AppNavigation() {
                         chatViewModel.clearChatScreenState()
                         navController.popBackStack()
                     }
+                )
+            }
+
+            composable(
+                "review/{requestId}/{revieweeId}/{isHelperReviewing}",
+                arguments = listOf(
+                    navArgument("requestId") { type = NavType.StringType },
+                    navArgument("revieweeId") { type = NavType.StringType },
+                    navArgument("isHelperReviewing") { type = NavType.BoolType }
+                )
+            ) { backStackEntry ->
+                val requestId = backStackEntry.arguments?.getString("requestId") ?: ""
+                val revieweeId = backStackEntry.arguments?.getString("revieweeId") ?: ""
+                val isHelperReviewing = backStackEntry.arguments?.getBoolean("isHelperReviewing") ?: false
+                ReviewScreen(
+                    requestId = requestId,
+                    revieweeId = revieweeId,
+                    isHelperReviewing = isHelperReviewing,
+                    onReviewSubmitted = { navController.popBackStack() }
                 )
             }
         }

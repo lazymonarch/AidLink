@@ -19,6 +19,7 @@ data class HelpRequest(
     val type: RequestType = RequestType.FEE,
     val status: String = "open",
     val offerCount: Int = 0,
+    val reviewStatus: Map<String, String> = emptyMap(),
 
     @ServerTimestamp
     val timestamp: Timestamp? = null,

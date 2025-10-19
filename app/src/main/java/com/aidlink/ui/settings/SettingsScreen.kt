@@ -99,7 +99,7 @@ private fun SettingsItem(
             .fillMaxWidth()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true),
+                indication = rememberRipple(),
                 onClick = onClick
             )
             .padding(horizontal = 16.dp, vertical = 16.dp),

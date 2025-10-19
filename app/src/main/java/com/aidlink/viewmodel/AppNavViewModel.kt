@@ -6,21 +6,29 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
-
-data class DeepLinkInfo(val chatId: String, val userName: String)
+data class ChatDeepLinkInfo(val chatId: String, val userName: String)
+data class ReviewDeepLinkInfo(val requestId: String, val revieweeId: String)
 
 @HiltViewModel
 class AppNavViewModel @Inject constructor(
     val repository: AuthRepository
 ) : ViewModel() {
-    private val _deepLinkInfo = MutableStateFlow<DeepLinkInfo?>(null)
-    val deepLinkInfo: StateFlow<DeepLinkInfo?> = _deepLinkInfo
+    private val _chatDeepLinkInfo = MutableStateFlow<ChatDeepLinkInfo?>(null)
+    val chatDeepLinkInfo: StateFlow<ChatDeepLinkInfo?> = _chatDeepLinkInfo
 
-    fun setDeepLink(chatId: String, userName: String) {
-        _deepLinkInfo.value = DeepLinkInfo(chatId, userName)
+    private val _reviewDeepLinkInfo = MutableStateFlow<ReviewDeepLinkInfo?>(null)
+    val reviewDeepLinkInfo: StateFlow<ReviewDeepLinkInfo?> = _reviewDeepLinkInfo
+
+    fun setChatDeepLink(chatId: String, userName: String) {
+        _chatDeepLinkInfo.value = ChatDeepLinkInfo(chatId, userName)
+    }
+
+    fun setReviewDeepLink(requestId: String, revieweeId: String) {
+        _reviewDeepLinkInfo.value = ReviewDeepLinkInfo(requestId, revieweeId)
     }
 
     fun consumeDeepLink() {
-        _deepLinkInfo.value = null
+        _chatDeepLinkInfo.value = null
+        _reviewDeepLinkInfo.value = null
     }
 }

@@ -55,24 +55,25 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.foundation)
+    implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.androidx.compose.material.icons.extended) {
-        exclude(group = "androidx.compose.material", module = "material")
-    }
+
+    // Implementation for Coil (Image Loading)
     implementation(libs.coil.compose)
+
+    // Implementations for Location & Permissions
+    implementation(libs.play.services.location)
+    implementation(libs.accompanist.permissions)
 
     // Firebase (using the BOM)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
-    implementation(platform(libs.firebase.bom.v3310))
     implementation(libs.firebase.storage.ktx)
 
     // Hilt for Dependency Injection
     implementation(libs.hilt.android)
-    implementation(libs.androidx.ui)
     kapt(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 

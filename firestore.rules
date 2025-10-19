@@ -12,6 +12,16 @@ service cloud.firestore {
       }
     }
 
+    match /reviews/{reviewId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null &&
+                      // Ensure the reviewer is who they say they are
+                      request.resource.data.reviewerId == request.auth.uid &&
+                      // Prevent duplicate reviews
+                      !exists(/databases/$(database)/documents/reviews/$(reviewId));
+      allow update, delete: if false;
+    }
+
     match /requests/{requestId} {
       allow read, create: if request.auth != null;
       allow update: if request.auth != null &&

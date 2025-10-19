@@ -1,7 +1,6 @@
 package com.aidlink.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -37,6 +36,7 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import java.text.SimpleDateFormat
 import java.util.*
+import com.aidlink.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -171,7 +171,7 @@ fun ChatItemRow(
             .padding(vertical = 4.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true),
+                indication = rememberRipple(), // Use M3 ripple
                 onClick = onItemClick
             ),
         shape = RoundedCornerShape(12.dp),
@@ -186,8 +186,8 @@ fun ChatItemRow(
         ) {
             AnimatedVisibility(
                 visible = isInDeleteMode,
-                enter = fadeIn(animationSpec = tween(durationMillis = 500)),
-                exit =fadeOut(animationSpec = tween(durationMillis = 200))
+                enter = fadeIn(),
+                exit = fadeOut()
             ) {
                 Checkbox(
                     checked = isSelected,
@@ -200,6 +200,8 @@ fun ChatItemRow(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(otherUserPhotoUrl)
                     .crossfade(true)
+                    .placeholder(R.drawable.ic_launcher_foreground)
+                    .error(R.drawable.ic_launcher_foreground)
                     .build(),
                 contentDescription = "Profile Picture of $otherUserName",
                 modifier = Modifier
@@ -222,8 +224,8 @@ fun ChatItemRow(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(horizontalAlignment = Alignment.End) {
-                val formattedTimestamp = chat.lastMessageTimestamp?.toDate()?.let {
-                    SimpleDateFormat("hh:mm a", Locale.getDefault()).format(it)
+                val formattedTimestamp = chat.lastMessageTimestamp?.toDate()?.let { date ->
+                    SimpleDateFormat("hh:mm a", Locale.getDefault()).format(date)
                 } ?: ""
                 Text(text = formattedTimestamp, color = Color.Gray, fontSize = 12.sp)
             }

@@ -144,6 +144,20 @@ class AuthRepository(
             }
         awaitClose { listener.remove() }
     }
+
+    suspend fun uploadProfileImage(uid: String, imageUri: Uri): String? {
+        return try {
+            Log.d(tag, "New image provided. Uploading to Firebase Storage...")
+            val photoRef = storage.reference.child("profile_images/$uid.jpg")
+            photoRef.putFile(imageUri).await()
+            val photoUrl = photoRef.downloadUrl.await().toString()
+            Log.i(tag, "Image uploaded successfully. URL: $photoUrl")
+            photoUrl
+        } catch (e: Exception) {
+            Log.e(tag, "Error uploading profile image for user: $uid", e)
+            null
+        }
+    }
     suspend fun updateUserProfile(
         uid: String,
         name: String,

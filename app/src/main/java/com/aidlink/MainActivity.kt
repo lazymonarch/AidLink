@@ -40,13 +40,25 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         intent?.let {
-            val chatId = it.getStringExtra("chatId")
-            val userName = it.getStringExtra("userName")
-            if (chatId != null && userName != null) {
-                appNavViewModel.setDeepLink(chatId, userName)
-                it.removeExtra("chatId")
-                it.removeExtra("userName")
+            val screen = it.getStringExtra("screen")
+            if (screen == "review") {
+                val requestId = it.getStringExtra("requestId")
+                val revieweeId = it.getStringExtra("revieweeId")
+                if (requestId != null && revieweeId != null) {
+                    appNavViewModel.setReviewDeepLink(requestId, revieweeId)
+                }
+            } else {
+                val chatId = it.getStringExtra("chatId")
+                val userName = it.getStringExtra("userName")
+                if (chatId != null && userName != null) {
+                    appNavViewModel.setChatDeepLink(chatId, userName)
+                }
             }
+            it.removeExtra("screen")
+            it.removeExtra("requestId")
+            it.removeExtra("revieweeId")
+            it.removeExtra("chatId")
+            it.removeExtra("userName")
         }
     }
 }
