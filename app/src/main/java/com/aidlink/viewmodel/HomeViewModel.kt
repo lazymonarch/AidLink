@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.Offer
+import com.github.davidmoten.geo.GeoHash
+import com.google.firebase.firestore.GeoPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -21,7 +24,7 @@ sealed class RespondUiState {
     object Idle : RespondUiState()
     object Loading : RespondUiState()
     object Success : RespondUiState()
-    data class Error(val message: String) : RespondUiState()
+    data class Error(val message: String) : PostRequestUiState()
 }
 
 @HiltViewModel
@@ -29,18 +32,35 @@ class HomeViewModel @Inject constructor(
     private val repository: AuthRepository
 ) : ViewModel() {
 
+    private val _userGeoPoint = MutableStateFlow<GeoPoint?>(null)
+    private val _radiusKm = MutableStateFlow(10.0)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val requests: StateFlow<List<HelpRequest>> = repository.getAuthStateFlow()
         .flatMapLatest { user ->
-            if (user != null) {
-                repository.getOpenHelpRequests()
-            } else {
+            if (user == null) {
                 flowOf(emptyList())
+            } else {
+                val profile = repository.getUserProfileOnce(user.uid)
+                if (profile?.location == null) {
+                    flowOf(emptyList())
+                } else {
+                    _userGeoPoint.value = profile.location
+                    _radiusKm.flatMapLatest { radius ->
+                        repository.getNearbyHelpRequests(profile.location, radius)
+                    }
+                }
             }
         }
-
-        .catch { emit(emptyList()) }
+        .catch {
+            emit(emptyList())
+            // TODO: Log this error
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    fun setRadius(km: Double) {
+        _radiusKm.value = km
+    }
     private val _selectedRequest = MutableStateFlow<HelpRequest?>(null)
     val selectedRequest: StateFlow<HelpRequest?> = _selectedRequest.asStateFlow()
 
@@ -50,6 +70,7 @@ class HomeViewModel @Inject constructor(
     private val _respondUiState = MutableStateFlow<RespondUiState>(RespondUiState.Idle)
     val respondUiState: StateFlow<RespondUiState> = _respondUiState.asStateFlow()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val offers: StateFlow<List<Offer>> = selectedRequest
         .filterNotNull()
         .flatMapLatest { request ->
@@ -60,7 +81,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _respondUiState.value = RespondUiState.Loading
             val success = repository.makeOffer(requestId)
-            _respondUiState.value = if (success) RespondUiState.Success else RespondUiState.Error("Failed to send offer.")
+            _respondUiState.value = (if (success) RespondUiState.Success else RespondUiState.Error("Failed to send offer.")) as RespondUiState
         }
     }
 
@@ -77,23 +98,42 @@ class HomeViewModel @Inject constructor(
     fun postRequest(title: String, description: String, category: String, compensation: String) {
         viewModelScope.launch {
             _postRequestUiState.value = PostRequestUiState.Loading
+
             val currentUser = repository.getCurrentUser() ?: run {
                 _postRequestUiState.value = PostRequestUiState.Error("You must be logged in.")
                 return@launch
             }
+
             val userProfile = repository.getUserProfileOnce(currentUser.uid) ?: run {
                 _postRequestUiState.value = PostRequestUiState.Error("Could not load your profile to post.")
                 return@launch
             }
+
+            val userGeoPoint = userProfile.location
+            val locationName = userProfile.area
+
+            if (userGeoPoint == null) {
+                _postRequestUiState.value = PostRequestUiState.Error("Please set your location in your profile first.")
+                return@launch
+            }
+
+            val lat = userGeoPoint.latitude
+            val lon = userGeoPoint.longitude
+            val geohash = GeoHash.encodeHash(lat, lon, 7) // 7 chars = ~150m precision
+
             val newRequest = HelpRequest(
                 userId = currentUser.uid,
                 userName = userProfile.name,
                 title = title,
                 description = description,
                 category = category,
-                location = "User's Area",
+                locationName = locationName,
                 type = if (compensation == "Fee") com.aidlink.model.RequestType.FEE else com.aidlink.model.RequestType.VOLUNTEER,
-                status = "open"
+                status = "open",
+
+                latitude = lat,
+                longitude = lon,
+                geohash = geohash
             )
             val success = repository.createRequest(newRequest)
             _postRequestUiState.value = if (success) PostRequestUiState.Success else PostRequestUiState.Error("Failed to post request.")

@@ -145,7 +145,7 @@ private fun RequestDetailsContent(request: HelpRequest, innerPadding: PaddingVal
                 HorizontalDivider(color = Color.DarkGray)
                 DetailRow(label = "Category", value = request.category)
                 HorizontalDivider(color = Color.DarkGray)
-                DetailRow(label = "Location", value = request.location)
+                DetailRow(label = "Location", value = request.locationName)
                 HorizontalDivider(color = Color.DarkGray)
                 val compensationText = if (request.type == RequestType.FEE) "Fee" else "Volunteer"
                 DetailRow(label = "Compensation", value = compensationText)

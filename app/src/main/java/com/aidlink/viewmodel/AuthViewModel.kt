@@ -16,6 +16,7 @@ import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.firestore.GeoPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +50,8 @@ class AuthViewModel @Inject constructor(
     private val locationClient = LocationServices.getFusedLocationProviderClient(application)
     private val geocoder = Geocoder(application, Locale.getDefault())
     private val _fcmToken = MutableStateFlow<String?>(null)
+    private var imageUploadJob: Job? = null
+    private var localImageUri: Uri? = null
 
     fun onPhoneNumberChanged(newNumber: String) {
         _phoneNumber.value = newNumber
@@ -60,6 +63,16 @@ class AuthViewModel @Inject constructor(
             delay(3000L)
             _uiState.value = AuthUiState.Idle
         }
+    }
+
+    fun startProfileImageUpload(imageUri: Uri) {
+        localImageUri = imageUri
+        imageUploadJob?.cancel()
+        val user = repository.getCurrentUser() ?: return
+        imageUploadJob = viewModelScope.launch {
+            repository.uploadProfileImage(user.uid, imageUri)
+        }
+        Log.d("AuthViewModel", "Started background profile image upload.")
     }
 
     fun sendOtp(activity: Activity) {
@@ -161,36 +174,47 @@ class AuthViewModel @Inject constructor(
         bio: String,
         skills: List<String>,
         area: String,
-        photoUri: Uri?,
         location: GeoPoint?
     ) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
             val user = repository.getCurrentUser() ?: return@launch
-
-            val photoUrl = if (photoUri != null) {
-                repository.uploadProfileImage(user.uid, photoUri)
-            } else {
-                null
-            }
-
             val userProfile = UserProfile(
                 id = user.uid,
                 name = name,
                 bio = bio,
                 skills = skills,
                 area = area,
-                photoUrl = photoUrl ?: "",
+                photoUrl = "",
                 fcmToken = _fcmToken.value ?: "",
                 location = location,
                 phone = user.phoneNumber ?: ""
             )
 
             val success = repository.createUserProfile(userProfile)
-            if (success) {
-                _uiState.value = AuthUiState.AuthSuccessExistingUser
-            } else {
+            if (!success) {
                 setTemporaryError("Failed to save profile.")
+                return@launch
+            }
+            _uiState.value = AuthUiState.AuthSuccessExistingUser
+
+            val uploadJob = imageUploadJob
+            val uri = localImageUri
+
+            if (uploadJob != null && uri != null) {
+                Log.d("AuthViewModel", "Waiting for background upload to finish...")
+
+                uploadJob.join()
+                val photoUrl = repository.uploadProfileImage(user.uid, uri)
+
+                if (photoUrl != null) {
+                    Log.d("AuthViewModel", "Background upload finished. Updating profile with URL.")
+                    repository.updateProfilePhotoUrl(user.uid, photoUrl)
+                } else {
+                    Log.e("AuthViewModel", "Background upload finished but URL was null.")
+                }
+                imageUploadJob = null
+                localImageUri = null
             }
         }
     }

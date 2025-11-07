@@ -18,6 +18,8 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = (project.findProperty("MAPBOX_PUBLIC_TOKEN") as String? ?: "")
+        resValue("string", "mapbox_access_token", (project.findProperty("MAPBOX_PUBLIC_TOKEN") as String? ?: ""))
     }
 
     buildTypes {
@@ -71,6 +73,11 @@ dependencies {
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
     implementation(libs.firebase.storage.ktx)
+
+    // MapBox
+    implementation(libs.mapbox.compose)
+    implementation(libs.geo)
+    implementation(libs.mapbox.android)
 
     // Hilt for Dependency Injection
     implementation(libs.hilt.android)

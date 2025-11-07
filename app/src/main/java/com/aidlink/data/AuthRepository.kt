@@ -8,6 +8,8 @@ import com.aidlink.model.HelpRequest
 import com.aidlink.model.Message
 import com.aidlink.model.Offer
 import com.aidlink.model.UserProfile
+import com.aidlink.utils.Geometries
+import com.github.davidmoten.geo.GeoHash.coverBoundingBox
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.PhoneAuthCredential
@@ -15,12 +17,14 @@ import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 
@@ -196,6 +200,17 @@ class AuthRepository(
         }
     }
 
+    suspend fun updateProfilePhotoUrl(uid: String, photoUrl: String): Boolean {
+        return try {
+            db.collection("users").document(uid).update("photoUrl", photoUrl).await()
+            Log.i(tag, "Successfully updated photo URL for user $uid")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error updating photo URL", e)
+            false
+        }
+    }
+
     suspend fun createRequest(request: HelpRequest): Boolean {
         return try {
             db.collection("requests").add(request).await()
@@ -206,32 +221,49 @@ class AuthRepository(
         }
     }
 
-    fun getOpenHelpRequests(): Flow<List<HelpRequest>> = callbackFlow {
-        val currentUserId = auth.currentUser?.uid
-        if (currentUserId == null) {
-            trySend(emptyList())
-            close()
-            return@callbackFlow
+    fun getNearbyHelpRequests(
+        center: GeoPoint,
+        radiusInKm: Double
+    ): Flow<List<HelpRequest>> = flow {
+        val currentUserId = auth.currentUser?.uid ?: run {
+            emit(emptyList())
+            return@flow
         }
 
-        val listener = db.collection("requests")
+        val boundingBox = Geometries.getBoundingBox(center.latitude, center.longitude, radiusInKm)
+        val geohashQueries = coverBoundingBox(
+            boundingBox.topLeft.lat,
+            boundingBox.topLeft.lon,
+            boundingBox.bottomRight.lat,
+            boundingBox.bottomRight.lon,
+            7
+        ).hashes
+
+        if (geohashQueries.isEmpty()) {
+            emit(emptyList())
+            return@flow
+        }
+
+        val querySnapshots = db.collection("requests")
             .whereEqualTo("status", "open")
             .whereNotEqualTo("userId", currentUserId)
+            .whereIn("geohash", geohashQueries.take(30)) // Use .take(30) to be safe
             .orderBy("timestamp", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshots, error ->
-                if (error != null) {
-                    if (error.code == com.google.firebase.firestore.FirebaseFirestoreException.Code.FAILED_PRECONDITION) {
-                        Log.e(tag, "Firestore index missing. Please create it in the Firebase console.", error)
-                    }
-                    close(error)
-                    return@addSnapshotListener
-                }
-                val requests = snapshots?.map {
-                    it.toObject(HelpRequest::class.java).copy(id = it.id)
-                }
-                trySend(requests ?: emptyList())
-            }
-        awaitClose { listener.remove() }
+            .get()
+            .await()
+
+        val requestsInBox = querySnapshots.map {
+            it.toObject(HelpRequest::class.java).copy(id = it.id)
+        }
+
+        val requestsInRadius = requestsInBox.filter { request ->
+            val requestLocation = Geometries.point(request.latitude, request.longitude)
+            val centerPoint = Geometries.point(center.latitude, center.longitude)
+            val distanceKm = requestLocation.distance(centerPoint)
+            distanceKm <= radiusInKm
+        }
+
+        emit(requestsInRadius)
     }
 
     suspend fun getRequestById(requestId: String): HelpRequest? {

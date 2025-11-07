@@ -14,19 +14,21 @@ data class HelpRequest(
     val title: String = "",
     val description: String = "",
     val category: String = "",
-    val location: String = "",
+    val locationName: String = "",
     val compensation: String = "",
     val type: RequestType = RequestType.FEE,
     val status: String = "open",
     val offerCount: Int = 0,
     val reviewStatus: Map<String, String> = emptyMap(),
 
+
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val geohash: String = "",
+
+
     @ServerTimestamp
     val timestamp: Timestamp? = null,
     val responderId: String? = null,
     val responderName: String? = null,
-
-    val action: String? = null,
-    @ServerTimestamp
-    val lastActionTimestamp: Timestamp? = null
 )

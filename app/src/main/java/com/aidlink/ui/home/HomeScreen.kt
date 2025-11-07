@@ -149,7 +149,7 @@ fun HelpRequestCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                InfoRow(icon = Icons.Default.LocationOn, text = request.location)
+                InfoRow(icon = Icons.Default.LocationOn, text = request.locationName)
 
                 val (icon, text, color) = when(request.type) {
                     RequestType.VOLUNTEER -> Triple(Icons.Default.VolunteerActivism, "Volunteer", Color(0xFF4DABF7))

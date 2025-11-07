@@ -4,10 +4,12 @@ import { getMessaging } from "firebase-admin/messaging";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { logger } from "firebase-functions";
+import { getStorage } from "firebase-admin/storage";
 
 initializeApp();
 const db = getFirestore();
 const auth = getAuth();
+const storage = getStorage();
 
 /**
  * Handles all actions submitted to a request's 'actions' subcollection.
@@ -281,6 +283,22 @@ export const cleanupUserData = onDocumentDeleted(
             // 1. Delete the user from Firebase Authentication
             await auth.deleteUser(userId);
             logger.info(`[CLEANUP] Deleted user from Firebase Auth: ${userId}`);
+
+            // 1.5. Delete all user-related files from Cloud Storage
+            const bucket = storage.bucket(); 
+            const filePath = `profile_images/${userId}.jpg`;
+            const file = bucket.file(filePath);
+
+            try {
+                await file.delete();
+                logger.info(`[CLEANUP] Deleted profile image ${filePath} from Storage.`);
+            } catch (storageError) {
+                if (storageError.code === 404) {
+                    logger.warn(`[CLEANUP] No profile image found to delete at ${filePath}. Skipping.`);
+                } else {
+                    logger.error(`[CLEANUP] Error deleting profile image ${filePath}:`, storageError);
+                }
+            }
 
             // 2. Find and delete all help requests created by the user
             const requestsQuery = db.collection("requests").where("userId", "==", userId);

@@ -23,6 +23,13 @@ import com.aidlink.ui.settings.SettingsScreen
 import com.aidlink.viewmodel.*
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import com.aidlink.viewmodel.AuthProfileState
 
 @Composable
 fun AppNavigation() {
@@ -34,8 +41,32 @@ fun AppNavigation() {
 
     val chatDeepLinkInfo by appNavViewModel.chatDeepLinkInfo.collectAsState()
     val reviewDeepLinkInfo by appNavViewModel.reviewDeepLinkInfo.collectAsState()
+    val authProfileState by appNavViewModel.authProfileState.collectAsState()
     val currentUser by appNavViewModel.repository.getAuthStateFlow().collectAsState(initial = Firebase.auth.currentUser)
 
+    LaunchedEffect(authProfileState) {
+        when (authProfileState) {
+            AuthProfileState.Authenticated -> {
+                navController.navigate("home") {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                }
+            }
+            AuthProfileState.Unauthenticated -> {
+                navController.navigate("login") {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                }
+            }
+            AuthProfileState.NeedsProfile -> {
+                // User is logged in but has no profile
+                navController.navigate("profile_setup") {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                }
+            }
+            AuthProfileState.Unknown -> {
+                // Still loading, stay on splash screen
+            }
+        }
+    }
 
     LaunchedEffect(chatDeepLinkInfo) {
         chatDeepLinkInfo?.let {
@@ -58,15 +89,6 @@ fun AppNavigation() {
         }
     }
 
-    LaunchedEffect(currentUser) {
-        if (currentUser == null) {
-            navController.navigate("login") {
-                popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                launchSingleTop = true
-            }
-        }
-    }
-
     val bottomBarRoutes = setOf("home", "activity", "chats", "profile")
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -81,9 +103,17 @@ fun AppNavigation() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = if (Firebase.auth.currentUser != null) "home" else "login",
+            startDestination = "splash",
             modifier = Modifier.padding(innerPadding)
         ) {
+            composable("splash") {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color.White)
+                }
+            }
             composable("login") {
                 LoginScreen(
                     authViewModel = authViewModel,
@@ -121,12 +151,9 @@ fun AppNavigation() {
             }
 
             composable("home") {
-                HomeScreen(
-                    homeViewModel = homeViewModel,
-                    onPostRequestClicked = { navController.navigate("post_request") },
-                    onRequestClicked = { requestId ->
-                        navController.navigate("request_detail/$requestId")
-                    }
+                HybridMapScreen(
+                    navController = navController,
+                    homeViewModel = homeViewModel
                 )
             }
 

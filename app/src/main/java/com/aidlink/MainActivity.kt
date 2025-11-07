@@ -49,7 +49,7 @@ class MainActivity : ComponentActivity() {
                 }
             } else {
                 val chatId = it.getStringExtra("chatId")
-                val userName = it.getStringExtra("userName")
+                val userName = it.getStringExtra("userName") ?: it.getStringExtra("senderName")
                 if (chatId != null && userName != null) {
                     appNavViewModel.setChatDeepLink(chatId, userName)
                 }
@@ -59,6 +59,7 @@ class MainActivity : ComponentActivity() {
             it.removeExtra("revieweeId")
             it.removeExtra("chatId")
             it.removeExtra("userName")
+            it.removeExtra("senderName")
         }
     }
 }

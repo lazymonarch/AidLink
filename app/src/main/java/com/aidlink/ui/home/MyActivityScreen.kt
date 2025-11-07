@@ -134,9 +134,11 @@ fun MyActivityScreen(
                 if (listToShow.isEmpty()) {
                     EmptyState(message = emptyMessage)
                 } else {
-                    LazyColumn(contentPadding = PaddingValues(16.dp)) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp)
+                    ) {
                         items(items = listToShow, key = { it.id }) { request ->
-                            // --- START OF MODIFICATION ---
                             Column {
                                 ActivityItemRow(
                                     request = request,
@@ -152,7 +154,6 @@ fun MyActivityScreen(
                                     }
                                 )
 
-                                // Show "Leave Feedback" button if review is pending
                                 if (page == 2 && request.reviewStatus[currentUser?.uid] == "pending") {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Button(
@@ -177,7 +178,6 @@ fun MyActivityScreen(
                                     }
                                 }
                             }
-                            // --- END OF MODIFICATION ---
                         }
                     }
                 }
@@ -186,7 +186,6 @@ fun MyActivityScreen(
     }
 }
 
-// ... (The rest of your code from ManageRequestDialog downwards remains unchanged)
 @Composable
 fun ManageRequestDialog(
     request: HelpRequest,

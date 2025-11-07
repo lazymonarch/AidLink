@@ -14,10 +14,9 @@ data class BadgeInfo(
     val id: String,
     val icon: ImageVector,
     val text: String,
-    val description: String // Description is useful for the ReviewScreen
+    val description: String
 )
 
-// List of badges a Requester can give to a Helper
 val helperBadges = listOf(
     BadgeInfo("skilled", Icons.Default.CheckCircle, "Skilled", "Knew what they were doing."),
     BadgeInfo("punctual", Icons.Default.Schedule, "Punctual", "Arrived on time."),
@@ -26,7 +25,6 @@ val helperBadges = listOf(
     BadgeInfo("above_beyond", Icons.Default.Star, "Above & Beyond", "Exceeded expectations.")
 )
 
-// List of badges a Helper can give to a Requester
 val requesterBadges = listOf(
     BadgeInfo("clear_instructions", Icons.AutoMirrored.Filled.ListAlt, "Clear Instructions", "The request was accurate."),
     BadgeInfo("respectful", Icons.Default.ThumbUp, "Respectful", "Was courteous and polite."),
@@ -34,5 +32,4 @@ val requesterBadges = listOf(
     BadgeInfo("prepared", Icons.Default.Home, "Prepared", "The environment was ready.")
 )
 
-// A combined list for easy lookup on the ProfileScreen
 val allBadges = helperBadges + requesterBadges
