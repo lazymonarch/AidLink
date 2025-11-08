@@ -126,7 +126,7 @@ class AuthViewModel @Inject constructor(
 
     @SuppressLint("MissingPermission")
     fun detectLocation(
-        onResult: (areaString: String, geoPoint: GeoPoint) -> Unit,
+        onResult: (areaString: String, geoPoint: GeoPoint, roundedLat: Double, roundedLon: Double, geohashCoarse: String) -> Unit,
         onError: (String) -> Unit
     ) {
         viewModelScope.launch {
@@ -148,7 +148,14 @@ class AuthViewModel @Inject constructor(
 
                                 val geoPoint = GeoPoint(location.latitude, location.longitude)
 
-                                onResult(areaString, geoPoint)
+                                // Round to ~1 km precision (2 decimal places)
+                                val roundedLat = kotlin.math.round(location.latitude * 100) / 100
+                                val roundedLon = kotlin.math.round(location.longitude * 100) / 100
+
+                                // Coarse geohash (5 chars ~2.4 km)
+                                val geohashCoarse = com.github.davidmoten.geo.GeoHash.encodeHash(roundedLat, roundedLon, 5)
+
+                                onResult(areaString, geoPoint, roundedLat, roundedLon, geohashCoarse)
 
                             } catch (e: Exception) {
                                 Log.e("AuthViewModel", "Geocoding failed", e)
@@ -174,7 +181,10 @@ class AuthViewModel @Inject constructor(
         bio: String,
         skills: List<String>,
         area: String,
-        location: GeoPoint?
+        location: GeoPoint?,
+        roundedLat: Double,
+        roundedLon: Double,
+        geohashCoarse: String
     ) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
@@ -188,6 +198,9 @@ class AuthViewModel @Inject constructor(
                 photoUrl = "",
                 fcmToken = _fcmToken.value ?: "",
                 location = location,
+                roundedLat = roundedLat,
+                roundedLon = roundedLon,
+                geohashCoarse = geohashCoarse,
                 phone = user.phoneNumber ?: ""
             )
 

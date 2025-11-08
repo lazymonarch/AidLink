@@ -78,6 +78,9 @@ dependencies {
     implementation(libs.mapbox.compose)
     implementation(libs.geo)
     implementation(libs.mapbox.android)
+    implementation(libs.mapbox.search.android)
+    implementation(libs.mapbox.search.ui)
+    implementation(libs.mapbox.place.autocomplete)
 
     // Hilt for Dependency Injection
     implementation(libs.hilt.android)

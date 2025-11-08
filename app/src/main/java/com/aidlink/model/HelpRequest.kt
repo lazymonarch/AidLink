@@ -21,11 +21,10 @@ data class HelpRequest(
     val offerCount: Int = 0,
     val reviewStatus: Map<String, String> = emptyMap(),
 
-
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     val geohash: String = "",
-
+    val geohashCoarse: String = "",
 
     @ServerTimestamp
     val timestamp: Timestamp? = null,

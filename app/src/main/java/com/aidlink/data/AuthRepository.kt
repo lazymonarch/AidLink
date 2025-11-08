@@ -162,6 +162,16 @@ class AuthRepository(
             null
         }
     }
+    suspend fun updateUserProfile(uid: String, userProfile: UserProfile): Boolean {
+        return try {
+            db.collection("users").document(uid).set(userProfile).await()
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error updating user profile", e)
+            false
+        }
+    }
+
     suspend fun updateUserProfile(
         uid: String,
         name: String,
@@ -229,41 +239,90 @@ class AuthRepository(
             emit(emptyList())
             return@flow
         }
+        
+        Log.d(tag, "getNearbyHelpRequests: currentUserId=$currentUserId")
 
-        val boundingBox = Geometries.getBoundingBox(center.latitude, center.longitude, radiusInKm)
-        val geohashQueries = coverBoundingBox(
-            boundingBox.topLeft.lat,
-            boundingBox.topLeft.lon,
-            boundingBox.bottomRight.lat,
-            boundingBox.bottomRight.lon,
-            7
-        ).hashes
+        // Generate center geohash and targeted neighbors
+        val centerGeohash = com.github.davidmoten.geo.GeoHash.encodeHash(center.latitude, center.longitude, 5)
+        
+        // Create a targeted list that should include tf342
+        val geohashQueries = mutableListOf(centerGeohash)
+        
+        // Add specific patterns that are likely neighbors
+        val baseGeohash = centerGeohash.dropLast(1) // Remove last char (tf34)
+        // Add common neighboring patterns
+        val neighborSuffixes = listOf("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+        neighborSuffixes.forEach { suffix ->
+            geohashQueries.add("$baseGeohash$suffix")
+        }
+        
+        Log.d(tag, "getNearbyHelpRequests: center=${center.latitude},${center.longitude}, radius=${radiusInKm}km")
+        Log.d(tag, "getNearbyHelpRequests: centerGeohash=$centerGeohash")
+        Log.d(tag, "getNearbyHelpRequests: geohashQueries (${geohashQueries.size}) = $geohashQueries")
 
         if (geohashQueries.isEmpty()) {
             emit(emptyList())
             return@flow
         }
 
-        val querySnapshots = db.collection("requests")
-            .whereEqualTo("status", "open")
-            .whereNotEqualTo("userId", currentUserId)
-            .whereIn("geohash", geohashQueries.take(30)) // Use .take(30) to be safe
-            .orderBy("timestamp", Query.Direction.DESCENDING)
-            .get()
-            .await()
+        try {
+            Log.d(tag, "getNearbyHelpRequests: Starting hybrid query for ${geohashQueries.size} geohashes...")
+            
+            // HYBRID APPROACH: Get requests both by geohash AND by coordinate range
+            
+            // 1. Get requests with matching geohashes
+            val geohashRequests = db.collection("requests")
+                .whereEqualTo("status", "open")
+                .whereIn("geohashCoarse", geohashQueries.take(10))
+                .get()
+                .await()
+            
+            // 2. Get requests with missing geohashes but within coordinate bounds
+            val boundingBox = Geometries.getBoundingBox(center.latitude, center.longitude, radiusInKm)
+            val coordinateRequests = db.collection("requests")
+                .whereEqualTo("status", "open")
+                .whereGreaterThanOrEqualTo("latitude", boundingBox.bottomRight.lat)
+                .whereLessThanOrEqualTo("latitude", boundingBox.topLeft.lat)
+                .get()
+                .await()
+            
+            // Combine both result sets
+            val allFoundRequests = mutableMapOf<String, HelpRequest>()
+            
+            geohashRequests.forEach { doc ->
+                val request = doc.toObject(HelpRequest::class.java).copy(id = doc.id)
+                allFoundRequests[doc.id] = request
+            }
+            
+            coordinateRequests.forEach { doc ->
+                val request = doc.toObject(HelpRequest::class.java).copy(id = doc.id)
+                if (!allFoundRequests.containsKey(doc.id)) {
+                    // Check longitude bounds manually (Firestore can't do range queries on multiple fields)
+                    if (request.longitude >= boundingBox.topLeft.lon && request.longitude <= boundingBox.bottomRight.lon) {
+                        allFoundRequests[doc.id] = request
+                    }
+                }
+            }
 
-        val requestsInBox = querySnapshots.map {
-            it.toObject(HelpRequest::class.java).copy(id = it.id)
+            Log.d(tag, "getNearbyHelpRequests: Found ${allFoundRequests.size} total requests")
+            
+            val requestsInBox = allFoundRequests.values.filter { it.userId != currentUserId }
+            
+            Log.d(tag, "getNearbyHelpRequests: ${requestsInBox.size} requests after filtering current user")
+
+            val requestsInRadius = requestsInBox.filter { request ->
+                val requestLocation = Geometries.point(request.latitude, request.longitude)
+                val centerLocation = Geometries.point(center.latitude, center.longitude)
+                val distance = centerLocation.distance(requestLocation)
+                distance <= radiusInKm
+            }
+            
+            Log.d(tag, "getNearbyHelpRequests: Final result: ${requestsInRadius.size} requests within ${radiusInKm}km")
+            emit(requestsInRadius)
+        } catch (e: Exception) {
+            Log.e(tag, "getNearbyHelpRequests: Firestore query failed", e)
+            emit(emptyList())
         }
-
-        val requestsInRadius = requestsInBox.filter { request ->
-            val requestLocation = Geometries.point(request.latitude, request.longitude)
-            val centerPoint = Geometries.point(center.latitude, center.longitude)
-            val distanceKm = requestLocation.distance(centerPoint)
-            distanceKm <= radiusInKm
-        }
-
-        emit(requestsInRadius)
     }
 
     suspend fun getRequestById(requestId: String): HelpRequest? {

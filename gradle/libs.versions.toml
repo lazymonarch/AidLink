@@ -13,6 +13,7 @@ espressoCore = "3.6.1"
 lifecycleRuntimeKtx = "2.8.2"
 activityCompose = "1.11.0"
 googleGmsGoogleServices = "4.4.4"
+mapboxSearch = "2.15.0"
 firebaseBom = "33.1.2"
 mapsComposeNdk27 = "11.15.3"
 maps = "11.15.3"
@@ -52,6 +53,9 @@ androidx-compose-material-icons-extended = { group = "androidx.compose.material"
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
 maps-compose-ndk27 = { module = "com.mapbox.extension:maps-compose-ndk27", version.ref = "mapsComposeNdk27" }
 mapbox-android = { module = "com.mapbox.maps:android", version.ref = "maps" }
+mapbox-search-android = { module = "com.mapbox.search:mapbox-search-android", version.ref = "mapboxSearch" }
+mapbox-search-ui = { module = "com.mapbox.search:mapbox-search-android-ui", version.ref = "mapboxSearch" }
+mapbox-place-autocomplete = { module = "com.mapbox.search:place-autocomplete", version.ref = "mapboxSearch" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "play-services-location" }
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanistPermissions" }
 

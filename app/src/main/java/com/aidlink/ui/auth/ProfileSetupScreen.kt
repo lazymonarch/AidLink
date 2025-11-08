@@ -14,17 +14,21 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aidlink.R
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -48,6 +53,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.firebase.firestore.GeoPoint
+import com.github.davidmoten.geo.GeoHash
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -63,6 +69,9 @@ fun ProfileSetupScreen(
     var area by remember { mutableStateOf("") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var geoPoint by remember { mutableStateOf<GeoPoint?>(null) }
+    var roundedLat by remember { mutableStateOf(0.0) }
+    var roundedLon by remember { mutableStateOf(0.0) }
+    var geohashCoarse by remember { mutableStateOf("") }
 
     val context = LocalContext.current
 
@@ -111,7 +120,7 @@ fun ProfileSetupScreen(
                 onPrev = { currentPage-- },
                 onSubmit = {
                     val skillList = skills.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                    authViewModel.saveUserProfile(name, bio, skillList, area, geoPoint)
+                    authViewModel.saveUserProfile(name, bio, skillList, area, geoPoint, roundedLat, roundedLon, geohashCoarse)
                 },
                 isNextEnabled = if (currentPage == 1) name.isNotBlank() else true,
                 isSubmitEnabled = name.isNotBlank() && skills.isNotBlank() && area.isNotBlank(),
@@ -163,9 +172,12 @@ fun ProfileSetupScreen(
                         onDetectLocationClick = {
                             if (locationPermissionState.status.isGranted) {
                                 authViewModel.detectLocation(
-                                    onResult = { areaString, newGeoPoint ->
+                                    onResult = { areaString, newGeoPoint, rLat, rLon, gCoarse ->
                                         area = areaString
                                         geoPoint = newGeoPoint
+                                        roundedLat = rLat
+                                        roundedLon = rLon
+                                        geohashCoarse = gCoarse
                                         Toast.makeText(context, "Location set!", Toast.LENGTH_SHORT).show()
                                     },
                                     onError = { errorMsg ->
@@ -175,6 +187,14 @@ fun ProfileSetupScreen(
                             } else {
                                 locationPermissionState.launchPermissionRequest()
                             }
+                        },
+                        onLocationSelected = { lat, lon ->
+                            // Handle coordinates from Mapbox search
+                            geoPoint = GeoPoint(lat, lon)
+                            roundedLat = lat
+                            roundedLon = lon
+                            geohashCoarse = GeoHash.encodeHash(lat, lon, 5)
+                            Toast.makeText(context, "Location set from search!", Toast.LENGTH_SHORT).show()
                         }
                     )
                 }
@@ -263,8 +283,30 @@ private fun Page2Content(
 private fun Page3Content(
     area: String,
     onAreaChange: (String) -> Unit,
-    onDetectLocationClick: () -> Unit
+    onDetectLocationClick: () -> Unit,
+    onLocationSelected: ((Double, Double) -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    val searchEngine = remember {
+        com.mapbox.search.SearchEngine.createSearchEngineWithBuiltInDataProviders(
+            com.mapbox.search.ApiType.SEARCH_BOX,
+            com.mapbox.search.SearchEngineSettings()
+        )
+    }
+    var showSearchSheet by remember { mutableStateOf(false) }
+
+    if (showSearchSheet) {
+        MapboxSearchBottomSheet(
+            searchEngine = searchEngine,
+            onDismiss = { showSearchSheet = false },
+            onPlaceSelected = { placeSelection ->
+                onAreaChange(placeSelection.name)
+                onLocationSelected?.invoke(placeSelection.latitude, placeSelection.longitude)
+                showSearchSheet = false
+            }
+        )
+    }
+
     Column {
         Spacer(modifier = Modifier.height(24.dp))
         Text("Area *", color = Color.White, style = MaterialTheme.typography.labelLarge)
@@ -273,9 +315,14 @@ private fun Page3Content(
 
         OutlinedTextField(
             value = area,
-            onValueChange = onAreaChange,
-            placeholder = { Text("e.g., sunnyvale, ca", color = Color.Gray) },
-            modifier = Modifier.fillMaxWidth(),
+            onValueChange = { /* Ignore manual input; rely on autocomplete */ },
+            placeholder = { Text("Search for your area", color = Color.Gray) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = rememberRipple()
+                ) { showSearchSheet = true },
             shape = RoundedCornerShape(12.dp),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color(0xFF1C1C1E),
@@ -289,17 +336,158 @@ private fun Page3Content(
                 unfocusedTrailingIconColor = Color.Gray
             ),
             singleLine = true,
+            readOnly = true,
             trailingIcon = {
-                IconButton(onClick = onDetectLocationClick) {
-                    Icon(
-                        imageVector = Icons.Default.MyLocation,
-                        contentDescription = "Detect my location"
-                    )
+                Row {
+                    IconButton(onClick = onDetectLocationClick) {
+                        Icon(
+                            imageVector = Icons.Default.MyLocation,
+                            contentDescription = "Detect my location"
+                        )
+                    }
+                    IconButton(onClick = { showSearchSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search area"
+                        )
+                    }
                 }
             }
         )
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MapboxSearchBottomSheet(
+    searchEngine: com.mapbox.search.SearchEngine,
+    onDismiss: () -> Unit,
+    onPlaceSelected: (PlaceSelection) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    var suggestions by remember { mutableStateOf(emptyList<com.mapbox.search.result.SearchSuggestion>()) }
+    var searchTask by remember { mutableStateOf<com.mapbox.search.common.AsyncOperationTask?>(null) }
+
+    val searchCallback = remember {
+        object : com.mapbox.search.SearchSelectionCallback {
+            override fun onSuggestions(
+                suggestionsList: List<com.mapbox.search.result.SearchSuggestion>,
+                responseInfo: com.mapbox.search.ResponseInfo
+            ) {
+                suggestions = suggestionsList
+            }
+
+            override fun onResult(
+                suggestion: com.mapbox.search.result.SearchSuggestion,
+                result: com.mapbox.search.result.SearchResult,
+                responseInfo: com.mapbox.search.ResponseInfo
+            ) {
+                val coordinate = result.coordinate
+                val lat = coordinate?.latitude() ?: 0.0
+                val lon = coordinate?.longitude() ?: 0.0
+                val placeName = result.name
+                
+                android.util.Log.d("MapboxSearch", "Selected place: $placeName at lat=$lat, lon=$lon")
+                onPlaceSelected(PlaceSelection(placeName, lat, lon))
+            }
+
+            override fun onResults(
+                suggestion: com.mapbox.search.result.SearchSuggestion,
+                results: List<com.mapbox.search.result.SearchResult>,
+                responseInfo: com.mapbox.search.ResponseInfo
+            ) {
+                // Handle category search results if needed
+            }
+
+            override fun onError(e: Exception) {
+                android.util.Log.e("MapboxSearch", "Search error", e)
+            }
+        }
+    }
+
+    LaunchedEffect(query) {
+        searchTask?.cancel()
+        if (query.length >= 2) {
+            val searchOptions = com.mapbox.search.SearchOptions.Builder()
+                .limit(5)
+                .build()
+            searchTask = searchEngine.search(query, searchOptions, searchCallback)
+        } else {
+            suggestions = emptyList()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            searchTask?.cancel()
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color(0xFF1C1C1E)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .heightIn(max = 400.dp)
+        ) {
+            Text("Search for your area", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("Type area name", color = Color.Gray) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF2C2C2E),
+                    unfocusedContainerColor = Color(0xFF2C2C2E),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color.White,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(suggestions) { suggestion ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = rememberRipple()
+                            ) {
+                                searchTask = searchEngine.select(suggestion, searchCallback)
+                            }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(suggestion.name, color = Color.White, fontSize = 16.sp)
+                            suggestion.address?.formattedAddress()?.let { address ->
+                                Text(address, color = Color.Gray, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class PlaceSelection(
+    val name: String,
+    val latitude: Double,
+    val longitude: Double
+)
 
 @Composable
 private fun ProfileSetupBottomBar(

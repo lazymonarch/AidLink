@@ -33,6 +33,7 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _userGeoPoint = MutableStateFlow<GeoPoint?>(null)
+    val userGeoPoint: StateFlow<GeoPoint?> = _userGeoPoint.asStateFlow()
     private val _radiusKm = MutableStateFlow(10.0)
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -41,13 +42,28 @@ class HomeViewModel @Inject constructor(
             if (user == null) {
                 flowOf(emptyList())
             } else {
-                val profile = repository.getUserProfileOnce(user.uid)
-                if (profile?.location == null) {
-                    flowOf(emptyList())
-                } else {
-                    _userGeoPoint.value = profile.location
-                    _radiusKm.flatMapLatest { radius ->
-                        repository.getNearbyHelpRequests(profile.location, radius)
+                repository.getUserProfile(user.uid).flatMapLatest { profile ->
+                    // Use roundedLat/roundedLon if available, fallback to location
+                    val userLocation = when {
+                        profile?.roundedLat != null && profile.roundedLon != null -> {
+                            GeoPoint(profile.roundedLat, profile.roundedLon)
+                        }
+                        profile?.location != null -> profile.location
+                        else -> null
+                    }
+                    
+                    android.util.Log.d("HomeViewModel", "User profile loaded: area=${profile?.area}, roundedLat=${profile?.roundedLat}, roundedLon=${profile?.roundedLon}, location=${profile?.location}")
+                    android.util.Log.d("HomeViewModel", "Using userLocation: $userLocation")
+                    
+                    if (userLocation == null) {
+                        android.util.Log.d("HomeViewModel", "No user location available, returning empty list")
+                        flowOf(emptyList())
+                    } else {
+                        _userGeoPoint.value = userLocation
+                        android.util.Log.d("HomeViewModel", "Querying nearby requests for location: lat=${userLocation.latitude}, lon=${userLocation.longitude}")
+                        _radiusKm.flatMapLatest { radius ->
+                            repository.getNearbyHelpRequests(userLocation, radius)
+                        }
                     }
                 }
             }
