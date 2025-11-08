@@ -12,16 +12,22 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.aidlink.R
 import com.aidlink.model.HelpRequest
 import com.aidlink.viewmodel.HomeViewModel
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.extension.compose.MapboxMap
 import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
+import com.mapbox.maps.extension.compose.annotation.generated.CircleAnnotationGroup
 import com.mapbox.maps.extension.compose.annotation.generated.PointAnnotationGroup
+import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import kotlinx.coroutines.launch
 
@@ -39,11 +45,24 @@ fun HybridMapScreen(
 
     // Default to Chennai if no user location
     val mapViewportState = rememberMapViewportState {
-        val lat = userGeoPoint?.latitude ?: 13.0827
-        val lon = userGeoPoint?.longitude ?: 80.2707
         setCameraOptions {
-            center(Point.fromLngLat(lon, lat))
-            zoom(12.0) // Good zoom level for 10-20km visibility
+            center(Point.fromLngLat(80.2707, 13.0827)) // Default Chennai
+            zoom(14.0) // Higher zoom for 5km visibility
+        }
+    }
+
+    // Automatically center map on user location when it becomes available
+    LaunchedEffect(userGeoPoint) {
+        userGeoPoint?.let { location ->
+            scope.launch {
+                mapViewportState.flyTo(
+                    cameraOptions = CameraOptions.Builder()
+                        .center(Point.fromLngLat(location.longitude, location.latitude))
+                        .zoom(14.0)
+                        .build(),
+                    animationOptions = null // Use default animation
+                )
+            }
         }
     }
 
@@ -75,7 +94,65 @@ fun HybridMapScreen(
                 MapboxMap(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     mapViewportState = mapViewportState
-                )
+                ) {
+                    // User location marker - Green Circle
+                    userGeoPoint?.let { userLocation ->
+                        CircleAnnotationGroup(
+                            annotations = listOf(
+                                CircleAnnotationOptions()
+                                    .withPoint(Point.fromLngLat(userLocation.longitude, userLocation.latitude))
+                                    .withCircleRadius(12.0)
+                                    .withCircleColor("#4CAF50")
+                                    .withCircleStrokeColor("#FFFFFF")
+                                    .withCircleStrokeWidth(3.0)
+                                    .withCircleOpacity(0.9)
+                            )
+                        )
+                        
+                        // User location text label
+                        PointAnnotationGroup(
+                            annotations = listOf(
+                                PointAnnotationOptions()
+                                    .withPoint(Point.fromLngLat(userLocation.longitude, userLocation.latitude))
+                                    .withTextField("📍 Your Location")
+                                    .withTextOffset(listOf(0.0, -2.5))
+                                    .withTextSize(12.0)
+                                    .withTextColor("#4CAF50")
+                                    .withTextHaloColor("#FFFFFF")
+                                    .withTextHaloWidth(2.0)
+                            )
+                        )
+                    }
+                    
+                    // Request markers - Red Circles
+                    if (requests.isNotEmpty()) {
+                        CircleAnnotationGroup(
+                            annotations = requests.map { request ->
+                                CircleAnnotationOptions()
+                                    .withPoint(Point.fromLngLat(request.longitude, request.latitude))
+                                    .withCircleRadius(10.0)
+                                    .withCircleColor("#FF5722")
+                                    .withCircleStrokeColor("#FFFFFF")
+                                    .withCircleStrokeWidth(2.0)
+                                    .withCircleOpacity(0.9)
+                            }
+                        )
+                        
+                        // Request text labels
+                        PointAnnotationGroup(
+                            annotations = requests.map { request ->
+                                PointAnnotationOptions()
+                                    .withPoint(Point.fromLngLat(request.longitude, request.latitude))
+                                    .withTextField("🆘 ${request.title}")
+                                    .withTextOffset(listOf(0.0, -2.5))
+                                    .withTextSize(10.0)
+                                    .withTextColor("#FF5722")
+                                    .withTextHaloColor("#FFFFFF")
+                                    .withTextHaloWidth(2.0)
+                            }
+                        )
+                    }
+                }
                 if (requests.isEmpty()) {
                     Text(
                         "No nearby requests found.",
