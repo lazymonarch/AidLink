@@ -34,7 +34,7 @@ class HomeViewModel @Inject constructor(
 
     private val _userGeoPoint = MutableStateFlow<GeoPoint?>(null)
     val userGeoPoint: StateFlow<GeoPoint?> = _userGeoPoint.asStateFlow()
-    private val _radiusKm = MutableStateFlow(5.0)
+    private val _radiusKm = MutableStateFlow(10.0)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val requests: StateFlow<List<HelpRequest>> = repository.getAuthStateFlow()

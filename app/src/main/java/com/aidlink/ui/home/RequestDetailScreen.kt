@@ -29,6 +29,11 @@ import com.aidlink.viewmodel.RespondUiState
 import com.aidlink.model.Offer
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import com.mapbox.geojson.Point
+import com.mapbox.maps.extension.compose.MapboxMap
+import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
+import com.mapbox.maps.extension.compose.annotation.generated.CircleAnnotationGroup
+import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationOptions
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -147,38 +152,261 @@ private fun RequestDetailsContent(request: HelpRequest, innerPadding: PaddingVal
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // Header Card with Title and User Info
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(text = request.title, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(text = request.description, color = Color.LightGray, style = MaterialTheme.typography.bodyLarge)
-                Spacer(modifier = Modifier.height(24.dp))
-                HorizontalDivider(color = Color.DarkGray)
-                DetailRow(label = "Category", value = request.category)
-                HorizontalDivider(color = Color.DarkGray)
-                DetailRow(label = "Location", value = request.locationName)
-                HorizontalDivider(color = Color.DarkGray)
-                val compensationText = if (request.type == RequestType.FEE) "Fee" else "Volunteer"
-                DetailRow(label = "Compensation", value = compensationText)
+            Column(modifier = Modifier.padding(20.dp)) {
+                // Title
+                Text(
+                    text = request.title,
+                    color = Color.White,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // User Info Row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // User Avatar Placeholder
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = "User",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.width(12.dp))
+                    
+                    Column {
+                        Text(
+                            text = request.userName.ifEmpty { "Anonymous User" },
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp
+                        )
+                        
+                        // Timestamp
+                        request.timestamp?.let { timestamp ->
+                            val dateFormat = SimpleDateFormat("MMM dd, yyyy 'at' hh:mm a", Locale.getDefault())
+                            Text(
+                                text = dateFormat.format(timestamp.toDate()),
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
             }
         }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Description Card
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Description",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    text = request.description.ifEmpty { "No description provided." },
+                    color = Color.LightGray,
+                    style = MaterialTheme.typography.bodyLarge,
+                    lineHeight = 24.sp
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Details Card
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Details",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Category
+                DetailRowWithIcon(
+                    icon = Icons.Default.Category,
+                    label = "Category",
+                    value = request.category.ifEmpty { "General" }
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Compensation Type
+                val compensationText = if (request.type == RequestType.FEE) "Paid Help" else "Volunteer"
+                val compensationColor = if (request.type == RequestType.FEE) Color(0xFF4CAF50) else Color(0xFF2196F3)
+                
+                DetailRowWithIcon(
+                    icon = Icons.Default.AttachMoney,
+                    label = "Type",
+                    value = compensationText,
+                    valueColor = compensationColor
+                )
+                
+                // Show compensation amount if it's a paid request
+                if (request.type == RequestType.FEE && request.compensation.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    DetailRowWithIcon(
+                        icon = Icons.Default.AttachMoney,
+                        label = "Amount",
+                        value = request.compensation,
+                        valueColor = Color(0xFF4CAF50)
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Location Map Card
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Location",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Mini Map
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                ) {
+                    RequestLocationMap(request = request)
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Location Name
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.LocationOn,
+                        contentDescription = "Location",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = request.locationName.ifEmpty { "Location not specified" },
+                        color = Color.LightGray,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+        
+        // Add some bottom padding for the floating action button
+        Spacer(modifier = Modifier.height(100.dp))
     }
 }
 
-
 @Composable
-private fun DetailRow(label: String, value: String) {
+private fun DetailRowWithIcon(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    valueColor: Color = Color.White
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, color = Color.Gray, fontSize = 16.sp)
-        Text(text = value, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = Color.Gray,
+            modifier = Modifier.size(20.dp)
+        )
+        
+        Spacer(modifier = Modifier.width(12.dp))
+        
+        Text(
+            text = label,
+            color = Color.Gray,
+            fontSize = 14.sp,
+            modifier = Modifier.weight(1f)
+        )
+        
+        Text(
+            text = value,
+            color = valueColor,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun RequestLocationMap(request: HelpRequest) {
+    val mapViewportState = rememberMapViewportState {
+        setCameraOptions {
+            center(Point.fromLngLat(request.longitude, request.latitude))
+            zoom(15.0) // Closer zoom for detail view
+        }
+    }
+
+    MapboxMap(
+        modifier = Modifier.fillMaxSize(),
+        mapViewportState = mapViewportState
+    ) {
+        // Request location marker
+        CircleAnnotationGroup(
+            annotations = listOf(
+                CircleAnnotationOptions()
+                    .withPoint(Point.fromLngLat(request.longitude, request.latitude))
+                    .withCircleRadius(12.0)
+                    .withCircleColor("#FF5722")
+                    .withCircleStrokeColor("#FFFFFF")
+                    .withCircleStrokeWidth(3.0)
+                    .withCircleOpacity(0.9)
+            )
+        )
     }
 }
