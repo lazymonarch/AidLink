@@ -72,7 +72,6 @@ fun SettingsScreen(
 
             SettingsItem(
                 icon = Icons.Default.DeleteForever,
-                text = "Delete Account",
                 color = MaterialTheme.colorScheme.error,
                 onClick = { showConfirmDialog = true }
             )
@@ -84,7 +83,6 @@ fun SettingsScreen(
 @Composable
 private fun SettingsItem(
     icon: ImageVector,
-    text: String,
     color: Color = Color.Unspecified,
     onClick: () -> Unit
 ) {
@@ -99,9 +97,9 @@ private fun SettingsItem(
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(imageVector = icon, contentDescription = text, tint = color)
+        Icon(imageVector = icon, contentDescription = "Delete Account", tint = color)
         Spacer(modifier = Modifier.width(16.dp))
-        Text(text = text, color = color, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Text(text = "Delete Account", color = color, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

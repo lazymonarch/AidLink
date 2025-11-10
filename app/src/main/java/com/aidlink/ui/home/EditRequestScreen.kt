@@ -1,18 +1,18 @@
+
 package com.aidlink.ui.home
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,19 +58,11 @@ fun EditRequestScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF131313),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
-                )
+                }
             )
         },
         bottomBar = {
-            Surface(
-                color = Color(0xFF131313),
-                border = BorderStroke(1.dp, Color(0xFF3D4F53))
-            ) {
+            Surface(tonalElevation = 4.dp) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -78,7 +70,7 @@ fun EditRequestScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     if (uiState is EditRequestUiState.Loading) {
-                        CircularProgressIndicator(color = Color.White)
+                        CircularProgressIndicator()
                     } else {
                         Button(
                             onClick = {
@@ -86,10 +78,6 @@ fun EditRequestScreen(
                             },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White,
-                                contentColor = Color.Black
-                            ),
                             enabled = title.isNotBlank() && description.isNotBlank()
                         ) {
                             Text("Save Changes", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -97,8 +85,7 @@ fun EditRequestScreen(
                     }
                 }
             }
-        },
-        containerColor = Color(0xFF131313)
+        }
     ) { innerPadding ->
         if (request == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -114,10 +101,10 @@ fun EditRequestScreen(
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
-                FormInput(label = "Title", value = title, onValueChange = { title = it })
-                FormInput(label = "Description", value = description, onValueChange = { description = it }, singleLine = false, modifier = Modifier.height(120.dp))
-                CategoryDropdown(label = "Category", items = categories, selectedItem = selectedCategory, onItemSelected = { selectedCategory = it })
-                CompensationToggle(label = "Compensation", selectedOption = selectedCompensation, onOptionSelected = { selectedCompensation = it })
+                EditFormInput(label = "Title", value = title, onValueChange = { title = it })
+                EditFormInput(label = "Description", value = description, onValueChange = { description = it }, singleLine = false, modifier = Modifier.height(120.dp))
+                EditCategoryDropdown(items = categories, selectedItem = selectedCategory, onItemSelected = { selectedCategory = it })
+                EditCompensationToggle(selectedOption = selectedCompensation, onOptionSelected = { selectedCompensation = it })
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
@@ -125,34 +112,25 @@ fun EditRequestScreen(
 }
 
 @Composable
-private fun FormInput(label: String, value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier, singleLine: Boolean = true) {
+private fun EditFormInput(label: String, value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier, singleLine: Boolean = true) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = modifier.fillMaxWidth(),
             singleLine = singleLine,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                focusedContainerColor = Color(0xFF182C30),
-                unfocusedContainerColor = Color(0xFF182C30),
-                cursorColor = Color.White,
-                focusedBorderColor = Color.White,
-                unfocusedBorderColor = Color(0xFF3D4F53)
-            )
+            shape = RoundedCornerShape(12.dp)
         )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CategoryDropdown(label: String, items: List<String>, selectedItem: String, onItemSelected: (String) -> Unit) {
+private fun EditCategoryDropdown(items: List<String>, selectedItem: String, onItemSelected: (String) -> Unit) {
     var isExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text("Category", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         ExposedDropdownMenuBox(expanded = isExpanded, onExpandedChange = { isExpanded = it }) {
             OutlinedTextField(
                 value = selectedItem,
@@ -160,22 +138,11 @@ private fun CategoryDropdown(label: String, items: List<String>, selectedItem: S
                 readOnly = true,
                 modifier = Modifier.fillMaxWidth().menuAnchor(),
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedContainerColor = Color(0xFF182C30),
-                    unfocusedContainerColor = Color(0xFF182C30),
-                    cursorColor = Color.White,
-                    focusedBorderColor = Color.White,
-                    unfocusedBorderColor = Color(0xFF3D4F53),
-                    focusedTrailingIconColor = Color.Gray,
-                    unfocusedTrailingIconColor = Color.Gray
-                )
+                shape = RoundedCornerShape(12.dp)
             )
-            ExposedDropdownMenu(expanded = isExpanded, onDismissRequest = { isExpanded = false }, modifier = Modifier.background(Color(0xFF182C30))) {
+            ExposedDropdownMenu(expanded = isExpanded, onDismissRequest = { isExpanded = false }) {
                 items.forEach { item ->
-                    DropdownMenuItem(text = { Text(item, color = Color.White) }, onClick = { onItemSelected(item); isExpanded = false })
+                    DropdownMenuItem(text = { Text(item) }, onClick = { onItemSelected(item); isExpanded = false })
                 }
             }
         }
@@ -183,22 +150,36 @@ private fun CategoryDropdown(label: String, items: List<String>, selectedItem: S
 }
 
 @Composable
-private fun CompensationToggle(label: String, selectedOption: String, onOptionSelected: (String) -> Unit) {
+private fun EditCompensationToggle(selectedOption: String, onOptionSelected: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Compensation", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
             listOf("Fee", "Volunteer").forEach { option ->
                 val isSelected = selectedOption.equals(option, ignoreCase = true)
+                val colors = if (isSelected) {
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                } else {
+                    ButtonDefaults.outlinedButtonColors()
+                }
+
                 OutlinedButton(
                     onClick = { onOptionSelected(option) },
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(width = 2.dp, color = if (isSelected) Color.White else Color(0xFF3D4F53)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isSelected) Color.White.copy(alpha = 0.1f) else Color.Transparent,
-                        contentColor = if (isSelected) Color.White else Color.Gray
-                    )
+                    border = if (!isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
+                    colors = colors
                 ) {
+                    if (isSelected) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Selected",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
                     Text(option, fontWeight = FontWeight.Medium)
                 }
             }

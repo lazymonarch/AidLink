@@ -96,14 +96,14 @@ fun PostRequestScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            FormInput(
+            PostFormInput(
                 label = "Title",
                 value = title,
                 onValueChange = { title = it },
                 placeholder = "e.g., Need help assembling a bookshelf"
             )
 
-            FormInput(
+            PostFormInput(
                 label = "Description",
                 value = description,
                 onValueChange = { description = it },
@@ -112,15 +112,13 @@ fun PostRequestScreen(
                 modifier = Modifier.height(120.dp)
             )
 
-            CategoryDropdown(
-                label = "Category",
+            PostCategoryDropdown(
                 items = categories,
                 selectedItem = selectedCategory,
                 onItemSelected = { selectedCategory = it }
             )
 
-            CompensationToggle(
-                label = "Compensation",
+            PostCompensationToggle(
                 selectedOption = selectedCompensation,
                 onOptionSelected = { selectedCompensation = it }
             )
@@ -131,7 +129,7 @@ fun PostRequestScreen(
 }
 
 @Composable
-private fun FormInput(
+private fun PostFormInput(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
@@ -155,8 +153,7 @@ private fun FormInput(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CategoryDropdown(
-    label: String,
+private fun PostCategoryDropdown(
     items: List<String>,
     selectedItem: String,
     onItemSelected: (String) -> Unit
@@ -164,7 +161,7 @@ private fun CategoryDropdown(
     var isExpanded by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Category", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         ExposedDropdownMenuBox(
             expanded = isExpanded,
             onExpandedChange = { isExpanded = it }
@@ -198,13 +195,12 @@ private fun CategoryDropdown(
 }
 
 @Composable
-private fun CompensationToggle(
-    label: String,
+private fun PostCompensationToggle(
     selectedOption: String,
     onOptionSelected: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Compensation", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
             listOf("Fee", "Volunteer").forEach { option ->
                 val isSelected = selectedOption == option
