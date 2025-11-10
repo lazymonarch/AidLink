@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
@@ -15,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,7 +56,6 @@ fun ChatsListScreen(
     }
 
     Scaffold(
-        containerColor = Color.Black,
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Chats", fontWeight = FontWeight.Bold) },
@@ -69,12 +68,7 @@ fun ChatsListScreen(
                             )
                         }
                     }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    actionIconContentColor = Color.White
-                )
+                }
             )
         },
 
@@ -84,9 +78,7 @@ fun ChatsListScreen(
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
-                BottomAppBar(
-                    containerColor = Color.Black
-                ) {
+                BottomAppBar {
                     Spacer(modifier = Modifier.weight(1f))
                     Button(
                         onClick = {
@@ -96,7 +88,7 @@ fun ChatsListScreen(
                             selectedChats = setOf()
                             isInDeleteMode = false
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         enabled = selectedChats.isNotEmpty()
                     ) {
                         Icon(Icons.Default.Delete, contentDescription = "Delete")
@@ -110,7 +102,8 @@ fun ChatsListScreen(
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
-            contentPadding = PaddingValues(16.dp)
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(chats, key = { it.id }) { chat ->
                 val otherUserId = chat.participants.firstOrNull { it != currentUser?.uid } ?: ""
@@ -153,25 +146,24 @@ fun ChatItemRow(
     onItemClick: () -> Unit
 ) {
     val borderColor = when (chat.status) {
-        "in_progress" -> Color.Green
-        "pending_completion" -> Color(0xFFFFC107)
-        "completed" -> Color.Red
+        "in_progress" -> MaterialTheme.colorScheme.primary
+        "pending_completion" -> MaterialTheme.colorScheme.tertiary
+        "completed" -> MaterialTheme.colorScheme.error
         else -> Color.Transparent
     }
 
     val backgroundColor = if (isSelected) {
-        Color(0xFF3A3A3C)
+        MaterialTheme.colorScheme.primaryContainer
     } else {
-        Color(0xFF1C1C1E)
+        MaterialTheme.colorScheme.surfaceVariant
     }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(), // Use M3 ripple
+                indication = null,
                 onClick = onItemClick
             ),
         shape = RoundedCornerShape(12.dp),
@@ -206,20 +198,20 @@ fun ChatItemRow(
                 contentDescription = "Profile Picture of $otherUserName",
                 modifier = Modifier
                     .size(50.dp)
-                    .clip(CircleShape)
-                    .background(Color.DarkGray),
+                    .clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = otherUserName, color = Color.White, fontWeight = FontWeight.Bold)
+                Text(text = otherUserName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = chat.lastMessage,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -227,7 +219,7 @@ fun ChatItemRow(
                 val formattedTimestamp = chat.lastMessageTimestamp?.toDate()?.let { date ->
                     SimpleDateFormat("hh:mm a", Locale.getDefault()).format(date)
                 } ?: ""
-                Text(text = formattedTimestamp, color = Color.Gray, fontSize = 12.sp)
+                Text(text = formattedTimestamp, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
         }
     }

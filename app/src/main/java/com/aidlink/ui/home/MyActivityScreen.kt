@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.home
 
 import androidx.compose.foundation.BorderStroke
@@ -14,7 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -89,21 +89,15 @@ fun MyActivityScreen(
     }
 
     Scaffold(
-        containerColor = Color.Black,
         topBar = {
             TopAppBar(
                 title = { Text("My Activity", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White
-                )
             )
         }
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding)) {
             TabRow(
                 selectedTabIndex = pagerState.currentPage,
-                containerColor = Color.Black
             ) {
                 tabTitles.forEachIndexed { index, title ->
                     Tab(
@@ -136,11 +130,12 @@ fun MyActivityScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp)
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         items(items = listToShow, key = { it.id }) { request ->
                             Column {
-                                ActivityItemRow(
+                                ActivityRequestCard(
                                     request = request,
                                     currentUser = currentUser,
                                     onClick = {
@@ -207,7 +202,6 @@ fun ManageRequestDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text(
@@ -217,20 +211,18 @@ fun ManageRequestDialog(
                         "pending_completion" -> "Confirm Completion"
                         else -> "Request Details"
                     },
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(bottom = 16.dp).fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
 
                 when (request.status) {
                     "open" -> {
-                        Text("Offers Received", color = Color.Gray, fontWeight = FontWeight.SemiBold)
+                        Text("Offers Received", style = MaterialTheme.typography.titleSmall)
                         Spacer(Modifier.height(8.dp))
                         if (offers.isEmpty()) {
                             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                                Text("No offers yet.", color = Color.Gray)
+                                Text("No offers yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         } else {
                             LazyColumn(
@@ -251,7 +243,6 @@ fun ManageRequestDialog(
                     "in_progress" -> {
                         Text(
                             text = "This will cancel the job with the current helper and reopen the request for new offers. Are you sure?",
-                            color = Color.LightGray,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(bottom = 16.dp)
                         )
@@ -269,7 +260,6 @@ fun ManageRequestDialog(
     }
 }
 
-
 @Composable
 fun OfferItemRow(offer: Offer, onAccept: () -> Unit) {
     Row(
@@ -277,43 +267,40 @@ fun OfferItemRow(offer: Offer, onAccept: () -> Unit) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(offer.helperName, color = Color.White, fontWeight = FontWeight.SemiBold)
-            Text(formatTimestamp(offer.createdAt), color = Color.Gray, fontSize = 12.sp)
+            Text(offer.helperName, fontWeight = FontWeight.SemiBold)
+            Text(formatTimestamp(offer.createdAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Button(onClick = onAccept, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))) {
-            Text("Accept", color = Color.Black)
+        Button(onClick = onAccept) {
+            Text("Accept")
         }
     }
 }
 
-
 @Composable
-fun ActivityItemRow(
+fun ActivityRequestCard(
     request: HelpRequest,
     currentUser: FirebaseUser?,
     onClick: () -> Unit
 ) {
-    Card(
+    OutlinedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(),
+                indication = null,
                 onClick = onClick
             ),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(imageVector = Icons.Default.Archive, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(24.dp))
+            Icon(imageVector = Icons.Default.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = request.title, color = Color.White, fontWeight = FontWeight.SemiBold)
-                Text(text = formatTimestamp(request.timestamp), color = Color.Gray, fontSize = 12.sp)
+                Text(text = request.title, fontWeight = FontWeight.SemiBold)
+                Text(text = formatTimestamp(request.timestamp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(modifier = Modifier.width(8.dp))
 
@@ -321,7 +308,7 @@ fun ActivityItemRow(
                 Text(
                     text = request.status.replace("_", " ").replaceFirstChar { it.uppercase() },
                     color = getStatusColor(request.status),
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold
                 )
                 if (request.userId == currentUser?.uid && request.status == "open" && request.offerCount > 0) {
@@ -346,32 +333,29 @@ fun CompletedRequestDetails(request: HelpRequest) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = Color.Gray,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(Modifier.width(16.dp))
             Column {
-                Text(label, color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Text(value, color = Color.White, fontSize = 16.sp)
+                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Text(
             text = request.title,
-            color = Color.White,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(bottom = 8.dp)
         )
         Text(
             text = request.description,
-            color = Color.LightGray,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(bottom = 24.dp)
         )
 
-        HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
+        HorizontalDivider()
         DetailRow(
             icon = Icons.Default.Person,
             label = "Helped By",
@@ -399,8 +383,7 @@ fun CompletedRequestDetails(request: HelpRequest) {
             label = "Compensation",
             value = compensationText
         )
-
-        HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f), modifier = Modifier.padding(top = 8.dp)) // FIX 2: Renamed from Divider
+        HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
     }
 }
 
@@ -412,7 +395,7 @@ fun OpenRequestActions(onDelete: () -> Unit, onEdit: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             Text("Edit")
         }
-        OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red), border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))) {
+        OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error), border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))) {
             Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text("Delete")
@@ -425,7 +408,7 @@ fun InProgressRequestActions(onCancel: () -> Unit) {
     Button(
         onClick = onCancel,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f))
+        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
     ) {
         Text("Yes, Cancel Job")
     }
@@ -437,12 +420,12 @@ fun OfferCountBadge(count: Int) {
         modifier = Modifier
             .size(24.dp)
             .clip(CircleShape)
-            .background(Color.Red),
+            .background(MaterialTheme.colorScheme.error),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = count.toString(),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onError,
             fontWeight = FontWeight.Bold,
             fontSize = 12.sp
         )
@@ -453,17 +436,15 @@ fun OfferCountBadge(count: Int) {
 fun PendingApprovalActions(onConfirm: () -> Unit) {
     Text(
         text = "The helper has marked this job as complete. Please confirm to close the request.",
-        color = Color.LightGray,
         textAlign = TextAlign.Center
     )
     Button(
         onClick = onConfirm,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
     ) {
         Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
-        Text("Confirm Completion", color = Color.Black, fontWeight = FontWeight.Bold)
+        Text("Confirm Completion", fontWeight = FontWeight.Bold)
     }
 }
 
@@ -477,7 +458,7 @@ fun EmptyState(message: String) {
     ) {
         Text(
             text = message,
-            color = Color.Gray,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyLarge
         )
@@ -486,8 +467,8 @@ fun EmptyState(message: String) {
 
 private fun getStatusColor(status: String): Color {
     return when (status.lowercase()) {
-        "completed" -> Color.Green
-        "pending" -> Color.Yellow
+        "completed" -> Color(0xFF4CAF50)
+        "pending" -> Color(0xFFFFC107)
         "pending_completion" -> Color(0xFFFFA500)
         "in_progress" -> Color(0xFF4DABF7)
         "open" -> Color.Gray
@@ -510,7 +491,7 @@ private fun formatTimestamp(timestamp: Timestamp?): String {
 @Preview
 @Composable
 fun MyActivityScreenPreview() {
-    AidLinkTheme(darkTheme = true) {
+    AidLinkTheme {
         MyActivityScreen(
             myActivityViewModel = viewModel(),
             onNavigateToChat = { _, _ -> },

@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.auth
 
 import android.annotation.SuppressLint
@@ -25,7 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aidlink.R
 import com.aidlink.ui.common.SphereLoader
 import com.aidlink.ui.theme.AidLinkTheme
-import com.aidlink.ui.theme.Montserrat
+import com.aidlink.ui.theme.Poppins
 import com.aidlink.viewmodel.AuthUiState
 import com.aidlink.viewmodel.AuthViewModel
 
@@ -70,7 +71,7 @@ fun LoginScreen(
                 text = "When hearts gettogether",
                 color = Color.White.copy(alpha = 0.8f),
                 fontSize = 20.sp,
-                fontFamily = Montserrat,
+                fontFamily = Poppins,
                 fontWeight = FontWeight.Medium
             )
             Spacer(modifier = Modifier.height(48.dp))

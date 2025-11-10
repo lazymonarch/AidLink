@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.profile
 
 import android.net.Uri
@@ -5,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -76,15 +76,9 @@ fun EditProfileScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
-                )
+                }
             )
         },
-        containerColor = Color.Black
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -111,8 +105,8 @@ fun EditProfileScreen(
                         modifier = Modifier
                             .size(120.dp)
                             .clip(CircleShape)
-                            .background(Color.DarkGray)
-                            .border(2.dp, Color.White, CircleShape),
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
                         contentScale = ContentScale.Crop
                     )
                     IconButton(
@@ -120,9 +114,9 @@ fun EditProfileScreen(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color.White)
+                            .background(MaterialTheme.colorScheme.primary)
                     ) {
-                        Icon(Icons.Default.Edit, contentDescription = "Change Picture", tint = Color.Black, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Edit, contentDescription = "Change Picture", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
                     }
                 }
 
@@ -146,11 +140,10 @@ fun EditProfileScreen(
                     onClick = { editProfileViewModel.onUpdateProfile(name, bio, skills, area, imageUri) },
                     modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp).height(56.dp),
                     shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                     enabled = uiState !is EditProfileUiState.Loading
                 ) {
                     if (uiState is EditProfileUiState.Loading) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black)
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     } else {
                         Text("Save Changes", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
@@ -169,23 +162,14 @@ private fun ProfileTextField(
     singleLine: Boolean = true
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(label, color = Color.Gray, style = MaterialTheme.typography.labelMedium)
+        Text(label, style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(4.dp))
-        TextField(
+        OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = modifier.fillMaxWidth(),
             singleLine = singleLine,
             shape = RoundedCornerShape(12.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFF1C1C1E),
-                unfocusedContainerColor = Color(0xFF1C1C1E),
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                cursorColor = Color.White,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent
-            )
         )
     }
 }

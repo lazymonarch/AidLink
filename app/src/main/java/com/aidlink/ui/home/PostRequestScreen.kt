@@ -1,34 +1,26 @@
+
 package com.aidlink.ui.home
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.HomeViewModel
-import com.aidlink.viewmodel.PostRequestUiState // FIXED: Import the new state class
-
-private val backgroundDark = Color(0xFF131313)
-private val textDark = Color(0xFFF6F8F8)
-private val textDark80 = Color(0xFFF6F8F8).copy(alpha = 0.8f)
-private val surfaceDark = Color(0xFF182C30)
-private val outlineDark = Color(0xFF3D4F53)
-private val placeholderDark = Color(0xFFA0B8BC)
-private val primaryWhite = Color(0xFFFFFFFF)
+import com.aidlink.viewmodel.PostRequestUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,20 +49,15 @@ fun PostRequestScreen(
                 title = { Text("New Request", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = backgroundDark,
-                    titleContentColor = textDark,
-                    navigationIconContentColor = textDark
-                )
+                }
             )
         },
         bottomBar = {
             Surface(
-                color = backgroundDark,
-                border = BorderStroke(1.dp, outlineDark)
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 4.dp
             ) {
                 Box(
                     modifier = Modifier
@@ -80,7 +67,7 @@ fun PostRequestScreen(
                 ) {
                     when (postRequestUiState) {
                         is PostRequestUiState.Loading -> {
-                            CircularProgressIndicator(color = Color.White)
+                            CircularProgressIndicator()
                         }
                         else -> {
                             Button(
@@ -89,10 +76,6 @@ fun PostRequestScreen(
                                     .fillMaxWidth()
                                     .height(56.dp),
                                 shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = primaryWhite,
-                                    contentColor = Color.Black
-                                ),
                                 enabled = title.isNotBlank() && description.isNotBlank()
                             ) {
                                 Text("Post Request", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -102,7 +85,6 @@ fun PostRequestScreen(
                 }
             }
         },
-        containerColor = backgroundDark
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -158,7 +140,7 @@ private fun FormInput(
     singleLine: Boolean = true
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, color = textDark80, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         OutlinedTextField(
             value = value,
@@ -167,17 +149,6 @@ private fun FormInput(
             placeholder = { Text(placeholder) },
             singleLine = singleLine,
             shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = textDark,
-                unfocusedTextColor = textDark,
-                focusedContainerColor = surfaceDark,
-                unfocusedContainerColor = surfaceDark,
-                cursorColor = primaryWhite,
-                focusedBorderColor = primaryWhite,
-                unfocusedBorderColor = outlineDark,
-                focusedPlaceholderColor = placeholderDark,
-                unfocusedPlaceholderColor = placeholderDark
-            )
         )
     }
 }
@@ -193,7 +164,7 @@ private fun CategoryDropdown(
     var isExpanded by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, color = textDark80, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         ExposedDropdownMenuBox(
             expanded = isExpanded,
             onExpandedChange = { isExpanded = it }
@@ -207,26 +178,14 @@ private fun CategoryDropdown(
                     .menuAnchor(),
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
                 shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = textDark,
-                    unfocusedTextColor = textDark,
-                    focusedContainerColor = surfaceDark,
-                    unfocusedContainerColor = surfaceDark,
-                    cursorColor = primaryWhite,
-                    focusedBorderColor = primaryWhite,
-                    unfocusedBorderColor = outlineDark,
-                    focusedTrailingIconColor = placeholderDark,
-                    unfocusedTrailingIconColor = placeholderDark
-                )
             )
             ExposedDropdownMenu(
                 expanded = isExpanded,
-                onDismissRequest = { isExpanded = false },
-                modifier = Modifier.background(surfaceDark)
+                onDismissRequest = { isExpanded = false }
             ) {
                 items.forEach { item ->
                     DropdownMenuItem(
-                        text = { Text(item, color = textDark) },
+                        text = { Text(item) },
                         onClick = {
                             onItemSelected(item)
                             isExpanded = false
@@ -245,25 +204,36 @@ private fun CompensationToggle(
     onOptionSelected: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, color = textDark80, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
             listOf("Fee", "Volunteer").forEach { option ->
                 val isSelected = selectedOption == option
+                val colors = if (isSelected) {
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                } else {
+                    ButtonDefaults.outlinedButtonColors()
+                }
+
                 OutlinedButton(
                     onClick = { onOptionSelected(option) },
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(
-                        width = 2.dp,
-                        color = if (isSelected) primaryWhite else outlineDark
-                    ),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isSelected) primaryWhite.copy(alpha = 0.1f) else Color.Transparent,
-                        contentColor = if (isSelected) primaryWhite else placeholderDark
-                    )
+                    border = if (!isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
+                    colors = colors
                 ) {
+                    if (isSelected) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Selected",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
                     Text(option, fontWeight = FontWeight.Medium)
                 }
             }
@@ -274,9 +244,9 @@ private fun CompensationToggle(
 @Preview(showBackground = true)
 @Composable
 fun PostRequestScreenPreview() {
-    AidLinkTheme(darkTheme = true) {
+    AidLinkTheme {
         PostRequestScreen(
-            homeViewModel = viewModel(),
+            homeViewModel = hiltViewModel(),
             onClose = {},
             onPostRequestSuccess = {}
         )

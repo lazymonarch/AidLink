@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.home
 
 import android.annotation.SuppressLint
@@ -11,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,7 +48,7 @@ fun ReviewScreen(
     viewModel: ReviewViewModel = hiltViewModel()
 ) {
     var overallExperience by remember { mutableStateOf<String?>(null) }
-    var selectedBadges by remember { mutableStateOf<MutableSet<String>>(mutableSetOf()) } // Use MutableSet
+    var selectedBadges by remember { mutableStateOf(setOf<String>()) }
     val uiState by viewModel.uiState.collectAsState()
     val currentUser = Firebase.auth.currentUser
 
@@ -78,15 +78,9 @@ fun ReviewScreen(
                     IconButton(onClick = onReviewSubmitted) { // Navigates back if review is cancelled
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
-                )
+                }
             )
         },
-        containerColor = Color.Black
     ) { padding ->
         Column(
             modifier = Modifier
@@ -106,27 +100,24 @@ fun ReviewScreen(
                             contentDescription = "Reviewee Profile Picture",
                             modifier = Modifier
                                 .size(64.dp)
-                                .clip(CircleShape)
-                                .background(Color.DarkGray),
+                                .clip(CircleShape),
                             contentScale = ContentScale.Crop
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
                             Text(
                                 "Feedback for",
-                                color = Color.Gray,
-                                fontSize = 14.sp
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
                                 profile.name,
-                                color = Color.White,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
+                                style = MaterialTheme.typography.titleLarge
                             )
                             Text(
                                 "Request: ${request.title}",
-                                color = Color.LightGray,
-                                fontSize = 14.sp
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -139,18 +130,16 @@ fun ReviewScreen(
                 "Private Feedback",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
             )
             Text(
                 "This will not be shared publicly.",
-                color = Color.Gray,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
             Text(
                 "How was your experience?",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.White,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
@@ -181,12 +170,11 @@ fun ReviewScreen(
                 "Public \"Trust Badges\"",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
             )
             Text(
                 "Recognize their strengths. (Optional, select up to 3)",
-                color = Color.Gray,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
@@ -199,11 +187,13 @@ fun ReviewScreen(
                         badgeInfo = badge,
                         isSelected = badge.id in selectedBadges,
                         onToggleSelection = {
-                            if (it.id in selectedBadges) {
-                                selectedBadges.remove(it.id)
-                            } else if (selectedBadges.size < 3) {
-                                selectedBadges.add(it.id)
+                            val newBadges = selectedBadges.toMutableSet()
+                            if (it.id in newBadges) {
+                                newBadges.remove(it.id)
+                            } else if (newBadges.size < 3) {
+                                newBadges.add(it.id)
                             }
+                            selectedBadges = newBadges
                         }
                     )
                 }
@@ -225,16 +215,12 @@ fun ReviewScreen(
                 },
                 enabled = overallExperience != null && uiState !is ReviewUiState.Submitting,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    disabledContainerColor = Color.DarkGray
-                ),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 if (uiState is ReviewUiState.Submitting) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 } else {
-                    Text("Submit Feedback", color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Submit Feedback", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -254,13 +240,13 @@ fun FeedbackButton(
             .height(100.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(),
+                indication = null,
                 onClick = onClick
             ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color(0xFF1C1C1E),
-            contentColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.White
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
         ),
         border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
     ) {
@@ -288,11 +274,11 @@ fun BadgeSelectionChip(
 ) {
     Surface(
         shape = RoundedCornerShape(50),
-        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color(0xFF1C1C1E),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
         border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
         modifier = Modifier.clickable(
             interactionSource = remember { MutableInteractionSource() },
-            indication = rememberRipple(),
+            indication = null,
             onClick = { onToggleSelection(badgeInfo) }
         )
     ) {
@@ -303,13 +289,13 @@ fun BadgeSelectionChip(
             Icon(
                 imageVector = badgeInfo.icon,
                 contentDescription = null,
-                tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.LightGray,
+                tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 text = badgeInfo.text,
-                color = if (isSelected) Color.White else Color.LightGray,
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium,
                 fontSize = 14.sp
             )

@@ -84,6 +84,8 @@ dependencies {
 
     // Hilt for Dependency Injection
     implementation(libs.hilt.android)
+    implementation(libs.androidx.foundation)
+    implementation(libs.androidx.material3)
     kapt(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 

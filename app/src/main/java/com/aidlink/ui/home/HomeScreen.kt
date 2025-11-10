@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.home
 
 import androidx.compose.foundation.clickable
@@ -8,7 +9,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -120,7 +120,7 @@ fun HelpRequestCard(
             .padding(vertical = 8.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(),
+                indication = null,
                 onClick = onClick
             ),
         shape = RoundedCornerShape(16.dp),

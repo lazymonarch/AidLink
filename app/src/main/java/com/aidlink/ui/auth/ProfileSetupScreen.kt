@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.auth
 
 import android.Manifest
@@ -29,7 +30,6 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -219,7 +219,7 @@ private fun Page1Content(
                 .background(Color.DarkGray)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = rememberRipple(bounded = false),
+                    indication = null,
                     onClick = onImageClick
                 ),
             contentAlignment = Alignment.Center
@@ -319,10 +319,7 @@ private fun Page3Content(
             placeholder = { Text("Search for your area", color = Color.Gray) },
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = rememberRipple()
-                ) { showSearchSheet = true },
+                .clickable { showSearchSheet = true },
             shape = RoundedCornerShape(12.dp),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color(0xFF1C1C1E),
@@ -459,10 +456,7 @@ private fun MapboxSearchBottomSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = rememberRipple()
-                            ) {
+                            .clickable {
                                 searchTask = searchEngine.select(suggestion, searchCallback)
                             }
                             .padding(12.dp),

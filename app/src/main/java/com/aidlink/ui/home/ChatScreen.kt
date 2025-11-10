@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.home
 
 import androidx.compose.foundation.BorderStroke
@@ -45,12 +46,10 @@ fun ChatScreen(
     }
 
     Scaffold(
-        containerColor = Color.Black,
         topBar = {
             TopAppBar(
                 title = { Text(otherUserName, fontWeight = FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = onBackClicked) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black, titleContentColor = Color.White, navigationIconContentColor = Color.White)
             )
         },
         bottomBar = {
@@ -100,8 +99,8 @@ fun ChatItemBubble(message: Message, isSentByCurrentUser: Boolean) {
     }
 
     val alignment = if (isSentByCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
-    val backgroundColor = if (isSentByCurrentUser) Color.White else Color(0xFF1C1C1E)
-    val textColor = if (isSentByCurrentUser) Color.Black else Color.White
+    val backgroundColor = if (isSentByCurrentUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (isSentByCurrentUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     val bubbleShape = if (isSentByCurrentUser) {
         RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
     } else {
@@ -129,11 +128,11 @@ fun SystemMessageBubble(message: Message) {
     ) {
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = Color.DarkGray
+            color = MaterialTheme.colorScheme.surfaceVariant
         ) {
             Text(
                 text = message.text,
-                color = Color.LightGray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
@@ -148,7 +147,7 @@ fun MessageInputBar(
     onTextChange: (String) -> Unit,
     onSendClicked: () -> Unit
 ) {
-    Surface(color = Color.Black) {
+    Surface(tonalElevation = 4.dp) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -160,11 +159,6 @@ fun MessageInputBar(
                 placeholder = { Text("Type a message...") },
                 shape = RoundedCornerShape(24.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFF1C1C1E),
-                    unfocusedContainerColor = Color(0xFF1C1C1E),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    cursorColor = Color.White,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 )
@@ -175,7 +169,7 @@ fun MessageInputBar(
                 enabled = text.isNotBlank(),
                 modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.primary)
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }
@@ -183,13 +177,13 @@ fun MessageInputBar(
 
 @Composable
 fun HelperActionBar(onRequestComplete: () -> Unit) {
-    Surface(color = Color(0xFF1C1C1E)) {
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
         Button(
             onClick = onRequestComplete,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50), contentColor = Color.White)
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary, contentColor = MaterialTheme.colorScheme.onSecondary)
         ) {
             Text("I've Finished the Job", fontWeight = FontWeight.Bold)
         }
@@ -198,7 +192,7 @@ fun HelperActionBar(onRequestComplete: () -> Unit) {
 
 @Composable
 fun RequesterApprovalBar(onConfirm: () -> Unit, onDispute: () -> Unit) {
-    Surface(color = Color(0xFF1C1C1E), tonalElevation = 4.dp) {
+    Surface(tonalElevation = 4.dp) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -206,7 +200,6 @@ fun RequesterApprovalBar(onConfirm: () -> Unit, onDispute: () -> Unit) {
         ) {
             Text(
                 "The helper has marked the job as complete.",
-                color = Color.White,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -214,16 +207,15 @@ fun RequesterApprovalBar(onConfirm: () -> Unit, onDispute: () -> Unit) {
                 OutlinedButton(
                     onClick = onDispute,
                     modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, Color.Gray)
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
-                    Text("Report Issue", color = Color.White)
+                    Text("Report Issue")
                 }
                 Button(
                     onClick = onConfirm,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text("Confirm Completion", color = Color.White)
+                    Text("Confirm Completion")
                 }
             }
         }

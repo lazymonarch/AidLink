@@ -125,6 +125,7 @@ class HomeViewModel @Inject constructor(
                 return@launch
             }
 
+            // Use the precise location from the profile to post
             val userGeoPoint = userProfile.location
             val locationName = userProfile.area
 
@@ -135,7 +136,16 @@ class HomeViewModel @Inject constructor(
 
             val lat = userGeoPoint.latitude
             val lon = userGeoPoint.longitude
+
+            //
+            // --- START OF FIX ---
+            //
+            // Your query uses a 5-char coarse geohash. You must create and save it here.
             val geohash = GeoHash.encodeHash(lat, lon, 7) // 7 chars = ~150m precision
+            val geohashCoarse = GeoHash.encodeHash(lat, lon, 5) // 5 chars = ~2.4km precision
+            //
+            // --- END OF FIX ---
+            //
 
             val newRequest = HelpRequest(
                 userId = currentUser.uid,
@@ -149,7 +159,8 @@ class HomeViewModel @Inject constructor(
 
                 latitude = lat,
                 longitude = lon,
-                geohash = geohash
+                geohash = geohash,
+                geohashCoarse = geohashCoarse // <-- THE FIXED LINE
             )
             val success = repository.createRequest(newRequest)
             _postRequestUiState.value = if (success) PostRequestUiState.Success else PostRequestUiState.Error("Failed to post request.")
