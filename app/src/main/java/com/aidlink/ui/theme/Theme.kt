@@ -1,5 +1,4 @@
 
-// In: app/src/main/java/com/aidlink/ui/theme/Theme.kt
 package com.aidlink.ui.theme
 
 import android.app.Activity
@@ -17,51 +16,41 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.graphics.Color
 
-// A modern, M3-compliant light color scheme
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF0061A4),
+    primary = PrimaryCoral,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFD1E4FF),
-    onPrimaryContainer = Color(0xFF001D36),
-    secondary = Color(0xFF535F70),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFD7E3F7),
-    onSecondaryContainer = Color(0xFF101C2B),
-    tertiary = Color(0xFF6B5778),
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFF2DAFF),
-    onTertiaryContainer = Color(0xFF251431),
-    background = Color(0xFFFDFBFF),
-    onBackground = Color(0xFF1A1C1E),
-    surface = Color(0xFFFDFBFF),
-    onSurface = Color(0xFF1A1C1E),
-    surfaceVariant = Color(0xFFDFE2EB),
-    onSurfaceVariant = Color(0xFF43474E),
-    outline = Color(0xFF73777F),
-    inverseOnSurface = Color(0xFFF1F0F4),
-    inverseSurface = Color(0xFF2F3033),
-    inversePrimary = Color(0xFF9ECAFF),
-    surfaceTint = Color(0xFF0061A4),
-    outlineVariant = Color(0xFFC3C7CF),
-    error = Color(0xFFBA1A1A),
-    onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF410002),
-    scrim = Color.Black,
+    primaryContainer = PrimaryCoralContainer,
+    onPrimaryContainer = Color(0xFF3E0500), // A dark, rich color for text/icons on the primary container
+    background = LightBackground,
+    onBackground = TextPrimary,
+    surface = LightSurface,
+    onSurface = TextPrimary,
+    surfaceVariant = PrimaryCoralContainer,
+    onSurfaceVariant = TextSecondary,
+    outline = LightOutline,
+    error = ErrorRed,
+    onError = OnError,
+    errorContainer = ErrorContainer,
+    onErrorContainer = OnErrorContainer,
 )
 
-// A placeholder dark scheme (can be refined later if needed)
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF9ECAFF),
-    onPrimary = Color(0xFF003258),
-    primaryContainer = Color(0xFF00497D),
-    onPrimaryContainer = Color(0xFFD1E4FF),
-    // ... define other dark colors as needed
+    primary = PrimaryCoral,
+    onPrimary = Color.Black,
+    primaryContainer = Color(0xFF7A2A1A),
+    onPrimaryContainer = PrimaryCoralContainer,
+    background = Color(0xFF1C1B1F),
+    onBackground = Color(0xFFE6E1E5),
+    surface = Color(0xFF1C1B1F),
+    onSurface = Color(0xFFE6E1E5),
+    surfaceVariant = Color(0xFF49454F),
+    onSurfaceVariant = Color(0xFFCAC4D0),
+    outline = Color(0xFF938F99),
 )
 
 @Composable
 fun AidLinkTheme(
-    darkTheme: Boolean = false, // Defaulting to LIGHT theme
+    darkTheme: Boolean = false,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {

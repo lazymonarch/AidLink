@@ -1,3 +1,4 @@
+
 package com.aidlink.viewmodel
 
 import android.annotation.SuppressLint
@@ -75,9 +76,9 @@ class AuthViewModel @Inject constructor(
         Log.d("AuthViewModel", "Started background profile image upload.")
     }
 
-    fun sendOtp(activity: Activity) {
+    fun sendOtp(activity: Activity, phoneNumber: String) {
         _uiState.value = AuthUiState.Loading
-        val fullPhoneNumber = "+91${_phoneNumber.value}"
+        val fullPhoneNumber = "+91$phoneNumber"
         val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
             override fun onVerificationCompleted(credential: PhoneAuthCredential) {
                 signIn(credential)
