@@ -53,6 +53,7 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.firebase.firestore.GeoPoint
 import com.github.davidmoten.geo.GeoHash
+import kotlinx.coroutines.flow.debounce
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -163,6 +164,7 @@ fun ProfileSetupScreen(
                 3 -> Page3Content(
                     paddingValues = paddingValues,
                     area = area,
+                    authViewModel = authViewModel,
                     onAreaChange = {
                         area = it
                         if (geoPoint != null) geoPoint = null
@@ -424,6 +426,7 @@ private fun Page2Content(
 private fun Page3Content(
     paddingValues: PaddingValues,
     area: String,
+    authViewModel: AuthViewModel,
     onAreaChange: (String) -> Unit,
     onDetectLocationClick: () -> Unit,
     onLocationSelected: ((Double, Double) -> Unit)? = null,
@@ -434,22 +437,16 @@ private fun Page3Content(
 ) {
     var showSearchBottomSheet by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    val searchResults = remember { mutableStateListOf<Pair<String, String>>() } // Pair of name and region
+    val searchResults by authViewModel.searchResults.collectAsState()
 
-    // Dummy search results
     LaunchedEffect(searchQuery) {
-        if (searchQuery.isNotBlank()) {
-            searchResults.clear()
-            searchResults.addAll(
-                listOf(
-                    "New York, USA" to "NY",
-                    "Los Angeles, USA" to "CA",
-                    "Chicago, USA" to "IL"
-                ).map { (name, region) -> name to region }
-            )
-        } else {
-            searchResults.clear()
-        }
+        snapshotFlow { searchQuery }
+            .debounce(300)
+            .collect { query ->
+                if (query.isNotBlank()) {
+                    authViewModel.searchAddress(query)
+                }
+            }
     }
 
 

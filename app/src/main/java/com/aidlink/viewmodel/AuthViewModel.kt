@@ -4,12 +4,12 @@ package com.aidlink.viewmodel
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.Application
-import android.location.Geocoder
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
+import com.aidlink.data.MapboxGeocodingRepository
 import com.aidlink.model.UserProfile
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.util.Locale
 import javax.inject.Inject
 
 sealed class AuthUiState {
@@ -38,6 +37,7 @@ sealed class AuthUiState {
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val repository: AuthRepository,
+    private val geocodingRepository: MapboxGeocodingRepository,
     application: Application
 ) : AndroidViewModel(application) {
 
@@ -46,10 +46,11 @@ class AuthViewModel @Inject constructor(
 
     private val _phoneNumber = MutableStateFlow("")
     val phoneNumber: StateFlow<String> = _phoneNumber.asStateFlow()
+    
+    val searchResults = MutableStateFlow<List<Pair<String, String>>>(emptyList())
 
     @SuppressLint("StaticFieldLeak")
     private val locationClient = LocationServices.getFusedLocationProviderClient(application)
-    private val geocoder = Geocoder(application, Locale.getDefault())
     private val _fcmToken = MutableStateFlow<String?>(null)
     private var imageUploadJob: Job? = null
     private var localImageUri: Uri? = null
@@ -74,6 +75,14 @@ class AuthViewModel @Inject constructor(
             repository.uploadProfileImage(user.uid, imageUri)
         }
         Log.d("AuthViewModel", "Started background profile image upload.")
+    }
+    
+    fun searchAddress(query: String) {
+        viewModelScope.launch {
+            geocodingRepository.forwardGeocode(query) { results ->
+                searchResults.value = results
+            }
+        }
     }
 
     fun sendOtp(activity: Activity, phoneNumber: String) {
@@ -132,35 +141,19 @@ class AuthViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             try {
-                locationClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+                locationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                     .addOnSuccessListener { location ->
                         if (location != null) {
-                            try {
-                                val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                                if (addresses.isNullOrEmpty()) {
+                            geocodingRepository.reverseGeocode(location.latitude, location.longitude) { address ->
+                                if (address != null) {
+                                    val geoPoint = GeoPoint(location.latitude, location.longitude)
+                                    val roundedLat = kotlin.math.round(location.latitude * 100) / 100
+                                    val roundedLon = kotlin.math.round(location.longitude * 100) / 100
+                                    val geohashCoarse = com.github.davidmoten.geo.GeoHash.encodeHash(roundedLat, roundedLon, 5)
+                                    onResult(address, geoPoint, roundedLat, roundedLon, geohashCoarse)
+                                } else {
                                     onError("Could not find address for location.")
-                                    return@addOnSuccessListener
                                 }
-
-                                val address = addresses[0]
-                                val areaString = listOfNotNull(address.subLocality, address.locality)
-                                    .joinToString(", ")
-                                    .ifEmpty { address.adminArea ?: "Unknown Area" }
-
-                                val geoPoint = GeoPoint(location.latitude, location.longitude)
-
-                                // Round to ~1 km precision (2 decimal places)
-                                val roundedLat = kotlin.math.round(location.latitude * 100) / 100
-                                val roundedLon = kotlin.math.round(location.longitude * 100) / 100
-
-                                // Coarse geohash (5 chars ~2.4 km)
-                                val geohashCoarse = com.github.davidmoten.geo.GeoHash.encodeHash(roundedLat, roundedLon, 5)
-
-                                onResult(areaString, geoPoint, roundedLat, roundedLon, geohashCoarse)
-
-                            } catch (e: Exception) {
-                                Log.e("AuthViewModel", "Geocoding failed", e)
-                                onError("Failed to read address.")
                             }
                         } else {
                             onError("Could not get location. Try enabling it.")

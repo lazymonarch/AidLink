@@ -18,8 +18,11 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = (project.findProperty("MAPBOX_PUBLIC_TOKEN") as String? ?: "")
-        resValue("string", "mapbox_access_token", (project.findProperty("MAPBOX_PUBLIC_TOKEN") as String? ?: ""))
+        
+        val mapboxPublicToken: String = project.findProperty("MAPBOX_PUBLIC_TOKEN") as? String ?: ""
+        manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = mapboxPublicToken
+        resValue("string", "mapbox_access_token", mapboxPublicToken)
+        buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"$mapboxPublicToken\"")
     }
 
     buildTypes {
@@ -40,6 +43,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.11"

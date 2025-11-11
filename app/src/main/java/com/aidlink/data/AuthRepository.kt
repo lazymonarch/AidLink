@@ -9,7 +9,7 @@ import com.aidlink.model.Message
 import com.aidlink.model.Offer
 import com.aidlink.model.UserProfile
 import com.aidlink.utils.Geometries
-import com.github.davidmoten.geo.GeoHash.coverBoundingBox
+import com.github.davidmoten.geo.GeoHash
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.PhoneAuthCredential
@@ -172,6 +172,16 @@ class AuthRepository(
         }
     }
 
+    suspend fun updateUserLocation(uid: String, location: GeoPoint): Boolean {
+        return try {
+            db.collection("users").document(uid).update("location", location).await()
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error updating user location", e)
+            false
+        }
+    }
+
     suspend fun updateUserProfile(
         uid: String,
         name: String,
@@ -243,34 +253,21 @@ class AuthRepository(
 
         Log.d(tag, "getNearbyHelpRequests: currentUserId=$currentUserId")
 
-        val centerGeohash = com.github.davidmoten.geo.GeoHash.encodeHash(center.latitude, center.longitude, 5)
-        val geohashQueries = mutableListOf(centerGeohash)
-        val baseGeohash = centerGeohash.dropLast(1)
-        val neighborSuffixes = listOf("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
-        neighborSuffixes.forEach { suffix ->
-            geohashQueries.add("$baseGeohash$suffix")
-        }
+        val centerGeohash = GeoHash.encodeHash(center.latitude, center.longitude, 5)
+        val geohashQueries = GeoHash.neighbours(centerGeohash).toMutableList()
+        geohashQueries.add(centerGeohash)
 
         Log.d(tag, "getNearbyHelpRequests: center=${center.latitude},${center.longitude}, radius=${radiusInKm}km")
         Log.d(tag, "getNearbyHelpRequests: centerGeohash=$centerGeohash")
         Log.d(tag, "getNearbyHelpRequests: geohashQueries (${geohashQueries.size}) = $geohashQueries")
 
-        if (geohashQueries.isEmpty()) {
-            trySend(emptyList())
-            close()
-            return@callbackFlow
-        }
-
         val geohashQuery = db.collection("requests")
             .whereEqualTo("status", "open")
-            .whereIn("geohashCoarse", geohashQueries.take(10))
+            .whereIn("geohashCoarse", geohashQueries)
 
-        val boundingBox = Geometries.getBoundingBox(center.latitude, center.longitude, radiusInKm)
-        val coordinateQuery = db.collection("requests")
-            .whereEqualTo("status", "open")
-            .whereGreaterThanOrEqualTo("latitude", boundingBox.bottomRight.lat)
-            .whereLessThanOrEqualTo("latitude", boundingBox.topLeft.lat)
-
+        // --- START OF FIX ---
+        // We have removed the inefficient coordinateQuery and all merging logic.
+        // We now only rely on the geohashQuery.
 
         val geohashListener = geohashQuery.addSnapshotListener { geohashSnapshots, error ->
             if (error != null) {
@@ -279,45 +276,31 @@ class AuthRepository(
                 return@addSnapshotListener
             }
 
-            coordinateQuery.get().addOnSuccessListener { coordinateSnapshots ->
-                val allFoundRequests = mutableMapOf<String, HelpRequest>()
-
-                geohashSnapshots?.forEach { doc ->
-                    val request = doc.toObject(HelpRequest::class.java).copy(id = doc.id)
-                    allFoundRequests[doc.id] = request
-                }
-
-                coordinateSnapshots?.forEach { doc ->
-                    val request = doc.toObject(HelpRequest::class.java).copy(id = doc.id)
-                    if (!allFoundRequests.containsKey(doc.id)) {
-                        if (request.longitude >= boundingBox.topLeft.lon && request.longitude <= boundingBox.bottomRight.lon) {
-                            allFoundRequests[doc.id] = request
-                        }
-                    }
-                }
-
-                Log.d(tag, "getNearbyHelpRequests: Found ${allFoundRequests.size} total requests")
-
-                val requestsInBox = allFoundRequests.values.filter { it.userId != currentUserId }
-                Log.d(tag, "getNearbyHelpRequests: ${requestsInBox.size} requests after filtering current user")
-
-                val requestsInRadius = requestsInBox.filter { request ->
-                    val requestLocation = Geometries.point(request.latitude, request.longitude)
-                    val centerLocation = Geometries.point(center.latitude, center.longitude)
-                    val distance = centerLocation.distance(requestLocation)
-                    distance <= radiusInKm
-                }
-
-                Log.d(tag, "getNearbyHelpRequests: Final result: ${requestsInRadius.size} requests within ${radiusInKm}km")
-                trySend(requestsInRadius)
-
-            }.addOnFailureListener { e ->
-                Log.e(tag, "Error fetching coordinate requests", e)
-                // We can still send the geohash results
-                val geohashRequests = geohashSnapshots?.mapNotNull { it.toObject(HelpRequest::class.java).copy(id = it.id) } ?: emptyList()
-                trySend(geohashRequests)
+            // Directly process the geohash results
+            val allFoundRequests = mutableMapOf<String, HelpRequest>()
+            geohashSnapshots?.forEach { doc ->
+                val request = doc.toObject(HelpRequest::class.java).copy(id = doc.id)
+                allFoundRequests[doc.id] = request
             }
+
+            Log.d(tag, "getNearbyHelpRequests: Found ${allFoundRequests.size} total requests from geohash query")
+
+            val requestsInBox = allFoundRequests.values.filter { it.userId != currentUserId }
+            Log.d(tag, "getNearbyHelpRequests: ${requestsInBox.size} requests after filtering current user")
+
+            // Run the final, precise distance filter
+            val requestsInRadius = requestsInBox.filter { request ->
+                val requestLocation = Geometries.point(request.latitude, request.longitude)
+                val centerLocation = Geometries.point(center.latitude, center.longitude)
+                val distance = centerLocation.distance(requestLocation)
+                distance <= radiusInKm
+            }
+
+            Log.d(tag, "getNearbyHelpRequests: Final result: ${requestsInRadius.size} requests within ${radiusInKm}km")
+            trySend(requestsInRadius)
         }
+        // --- END OF FIX ---
+
         awaitClose { geohashListener.remove() }
     }
 

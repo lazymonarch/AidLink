@@ -1,29 +1,19 @@
 
-// In: ui/home/HybridMapScreen.kt
 package com.aidlink.ui.home
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,26 +21,18 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.RequestType
-import com.aidlink.ui.theme.FeeGreen
-import com.aidlink.ui.theme.VolunteerBlue
 import com.aidlink.viewmodel.HomeViewModel
+// Import GeoPoint and Geometries
+import com.google.firebase.firestore.GeoPoint
+import com.aidlink.utils.Geometries
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.extension.compose.MapboxMap
 import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
 import com.mapbox.maps.extension.compose.annotation.generated.CircleAnnotationGroup
+import com.mapbox.maps.extension.compose.style.standard.MapboxStandardStyle
 import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationOptions
 import kotlinx.coroutines.launch
-
-// Helper to convert Compose Color to the Hex String Mapbox needs
-private fun Color.toHexString(): String {
-    return String.format(
-        "#%02X%02X%02X",
-        (this.red * 255).toInt(),
-        (this.green * 255).toInt(),
-        (this.blue * 255).toInt()
-    )
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,8 +41,9 @@ fun HybridMapScreen(
     homeViewModel: HomeViewModel = hiltViewModel()
 ) {
     val requests by homeViewModel.requests.collectAsState()
-    val userGeoPoint by homeViewModel.userGeoPoint.collectAsState()
+    val userGeoPoint by homeViewModel.userGeoPoint.collectAsState() // This is the user's location
     val scope = rememberCoroutineScope()
+    var selectedFilter by remember { mutableStateOf("All") }
 
     val mapViewportState = rememberMapViewportState {
         setCameraOptions {
@@ -71,9 +54,7 @@ fun HybridMapScreen(
 
     val scaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = rememberStandardBottomSheetState(
-            confirmValueChange = {
-                it != SheetValue.Hidden
-            }
+            skipHiddenState = true
         )
     )
 
@@ -91,80 +72,140 @@ fun HybridMapScreen(
         }
     }
 
-    val dragHandleInteractionSource = remember { MutableInteractionSource() }
-
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
         sheetContent = {
-            RequestSheetContent(
+            RequestsBottomSheetContent(
                 requests = requests,
-                onItemClick = { request ->
-                    navController.navigate("request_detail/${request.id}")
-                    scope.launch {
-                        mapViewportState.flyTo(
-                            cameraOptions = CameraOptions.Builder()
-                                .center(Point.fromLngLat(request.longitude, request.latitude))
-                                .zoom(14.0)
-                                .build()
-                        )
-                    }
+                userGeoPoint = userGeoPoint, // <-- 1. PASS USER'S LOCATION HERE
+                onRequestClick = { requestId ->
+                    navController.navigate("request_detail/$requestId")
                 }
             )
         },
-        sheetPeekHeight = 60.dp,
-        sheetShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        sheetContainerColor = MaterialTheme.colorScheme.surface,
+        sheetPeekHeight = 90.dp,
+        sheetShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        sheetContainerColor = Color(0xFFFAFAFA),
+        sheetTonalElevation = 8.dp,
         sheetDragHandle = {
-            CustomDragHandle(interactionSource = dragHandleInteractionSource)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(40.dp)
+                        .height(4.dp)
+                        .background(
+                            color = Color(0xFFCAC4D0),
+                            shape = RoundedCornerShape(2.dp)
+                        )
+                )
+            }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
             MapboxMap(
                 modifier = Modifier.fillMaxSize(),
-                mapViewportState = mapViewportState
+                mapViewportState = mapViewportState,
+                style = {
+                    MapboxStandardStyle()
+                }
             ) {
-                val volunteerColorHex = VolunteerBlue.toHexString()
-                val errorColorHex = MaterialTheme.colorScheme.error.toHexString()
-                val surfaceColorHex = MaterialTheme.colorScheme.surface.toHexString()
+                CircleAnnotationGroup(
+                    requests.map { request ->
+                        CircleAnnotationOptions()
+                            .withPoint(Point.fromLngLat(request.longitude, request.latitude))
+                            .withCircleColor(
+                                when (request.type) {
+                                    RequestType.FEE -> "#FF6B35"
+                                    RequestType.VOLUNTEER -> "#00897B"
+                                }
+                            )
+                            .withCircleRadius(12.0)
+                            .withCircleStrokeColor("#FFFFFF")
+                            .withCircleStrokeWidth(2.0)
+                    }
+                )
+            }
 
-                userGeoPoint?.let { userLocation ->
-                    CircleAnnotationGroup(
-                        annotations = listOf(
-                            CircleAnnotationOptions()
-                                .withPoint(Point.fromLngLat(userLocation.longitude, userLocation.latitude))
-                                .withCircleRadius(12.0)
-                                .withCircleColor(volunteerColorHex)
-                                .withCircleStrokeColor(surfaceColorHex)
-                                .withCircleStrokeWidth(3.0)
-                                .withCircleOpacity(0.9)
+            // Search and Filter Chips
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(16.dp)
+            ) {
+                ElevatedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = 64.dp), // Space for map controls
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = Color.White
+                    ),
+                    elevation = CardDefaults.elevatedCardElevation(
+                        defaultElevation = 4.dp
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { /* TODO: Open search */ }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = Color(0xFF49454F),
+                            modifier = Modifier.size(24.dp)
                         )
-                    )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Search requests...",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color(0xFF79747E)
+                        )
+                    }
                 }
 
-                if (requests.isNotEmpty()) {
-                    CircleAnnotationGroup(
-                        annotations = requests.map { request ->
-                            CircleAnnotationOptions()
-                                .withPoint(Point.fromLngLat(request.longitude, request.latitude))
-                                .withCircleRadius(10.0)
-                                .withCircleColor(errorColorHex)
-                                .withCircleStrokeColor(surfaceColorHex)
-                                .withCircleStrokeWidth(2.0)
-                        }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                FilterChip(
+                    selected = selectedFilter == "All",
+                    onClick = { /* TODO: Show filter options */ },
+                    label = { Text("All") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFFFF6B35),
+                        selectedLabelColor = Color.White
                     )
-                }
+                )
             }
 
             // Map Controls
             Column(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(16.dp),
+                    .padding(top = 150.dp, end = 16.dp), // Pushed down to avoid compass
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SmallFloatingActionButton(
+                // Zoom Buttons
+                FloatingActionButton(
                     onClick = {
                         scope.launch {
                             val currentZoom = mapViewportState.cameraState?.zoom ?: 13.0
@@ -173,13 +214,15 @@ fun HybridMapScreen(
                             )
                         }
                     },
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.size(48.dp),
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF1C1B1F),
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Zoom In", modifier = Modifier.size(20.dp))
+                    Icon(imageVector = Icons.Default.Add, contentDescription = "Zoom in")
                 }
 
-                SmallFloatingActionButton(
+                FloatingActionButton(
                     onClick = {
                         scope.launch {
                             val currentZoom = mapViewportState.cameraState?.zoom ?: 13.0
@@ -188,14 +231,16 @@ fun HybridMapScreen(
                             )
                         }
                     },
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.size(48.dp),
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF1C1B1F)
                 ) {
-                    Icon(Icons.Default.Remove, contentDescription = "Zoom Out", modifier = Modifier.size(20.dp))
+                    Icon(imageVector = Icons.Default.Remove, contentDescription = "Zoom out")
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Recenter Button
                 FloatingActionButton(
                     onClick = {
                         userGeoPoint?.let { location ->
@@ -209,110 +254,39 @@ fun HybridMapScreen(
                             }
                         }
                     },
-                    modifier = Modifier.size(48.dp),
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    modifier = Modifier.size(56.dp),
+                    containerColor = Color(0xFFE8DEF8),
+                    contentColor = Color(0xFF1C1B1F)
                 ) {
-                    Icon(Icons.Default.MyLocation, contentDescription = "My Location", modifier = Modifier.size(20.dp))
-                }
-            }
-             FloatingActionButton(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-                onClick = { navController.navigate("post_request") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Post Request")
-            }
-        }
-    }
-}
-
-@Composable
-private fun CustomDragHandle(interactionSource: MutableInteractionSource) {
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val handleColor = if (isPressed) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .width(40.dp)
-                .height(4.dp)
-                .background(handleColor, shape = RoundedCornerShape(2.dp))
-        )
-    }
-}
-
-
-@Composable
-private fun RequestSheetContent(
-    requests: List<HelpRequest>,
-    onItemClick: (HelpRequest) -> Unit
-) {
-    val nestedScrollConnection = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                return Offset.Zero
-            }
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource
-            ): Offset {
-                return available
-            }
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.5f)
-            .padding(start = 16.dp, end = 16.dp)
-            .nestedScroll(nestedScrollConnection)
-    ) {
-        Text(
-            text = "Nearby Requests",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp, top = 8.dp)
-        )
-
-        if (requests.isNotEmpty()) {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                items(items = requests, key = { it.id }) { request ->
-                    VerticalRequestCard(
-                        request = request,
-                        onClick = { onItemClick(request) }
+                    Icon(
+                        imageVector = Icons.Default.MyLocation,
+                        contentDescription = "My location",
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }
-        } else {
-            Box(
+
+            ExtendedFloatingActionButton(
+                onClick = { navController.navigate("post_request") },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                containerColor = Color(0xFFFF6B35),
+                contentColor = Color.White,
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 6.dp
+                )
             ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "No nearby requests found.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium
+                    text = "Post Request",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
@@ -320,67 +294,255 @@ private fun RequestSheetContent(
 }
 
 @Composable
-private fun VerticalRequestCard(request: HelpRequest, onClick: () -> Unit) {
-    OutlinedCard(
+fun RequestsBottomSheetContent(
+    requests: List<HelpRequest>,
+    userGeoPoint: GeoPoint?, // <-- 2. ACCEPT USER'S LOCATION
+    onRequestClick: (String) -> Unit
+) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            ),
-        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            .heightIn(min = 200.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = request.title,
-                style = MaterialTheme.typography.titleMedium,
+                text = "Nearby Requests",
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface
+                color = Color(0xFF1C1B1F),
+                modifier = Modifier.weight(1f)
             )
-            Text(
-                text = request.description,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(4.dp))
+
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFFFE5DD),
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Text(
+                    text = "${requests.size}",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFF6B35),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (requests.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SearchOff,
+                    contentDescription = null,
+                    tint = Color(0xFFCAC4D0),
+                    modifier = Modifier.size(64.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "No requests nearby",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFF49454F)
+                )
+                Text(
+                    text = "Try adjusting your location or filters",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF79747E)
+                )
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(
+                    horizontal = 16.dp,
+                    vertical = 8.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(requests) { request ->
+                    RequestCard(
+                        request = request,
+                        userGeoPoint = userGeoPoint, // <-- 3. PASS IT DOWN TO THE CARD
+                        onClick = { onRequestClick(request.id) }
+                    )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(80.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RequestCard(
+    request: HelpRequest,
+    userGeoPoint: GeoPoint?, // <-- 4. ACCEPT USER'S LOCATION HERE
+    onClick: () -> Unit
+) {
+    // 5. CALCULATE DISTANCE DYNAMICALLY
+    val distanceText = remember(userGeoPoint, request) {
+        if (userGeoPoint != null) {
+            try {
+                val userLocation = Geometries.point(userGeoPoint.latitude, userGeoPoint.longitude)
+                val requestLocation = Geometries.point(request.latitude, request.longitude)
+                val distanceKm = userLocation.distance(requestLocation)
+                // Format to one decimal place
+                String.format("%.1f km", distanceKm)
+            } catch (e: Exception) {
+                // Handle any potential calculation error
+                "N/A"
+            }
+        } else {
+            "..." // Placeholder while location is loading
+        }
+    }
+
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.elevatedCardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 6.dp
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Text(
+                    text = request.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1C1B1F),
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = when (request.type) {
+                        RequestType.FEE -> Color(0xFFFFE5DD)
+                        RequestType.VOLUNTEER -> Color(0xFFE0F2F1)
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = when (request.type) {
+                                RequestType.FEE -> Icons.Default.AttachMoney
+                                RequestType.VOLUNTEER -> Icons.Default.Favorite
+                            },
+                            contentDescription = null,
+                            tint = when (request.type) {
+                                RequestType.FEE -> Color(0xFFFF6B35)
+                                RequestType.VOLUNTEER -> Color(0xFF00897B)
+                            },
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = when (request.type) {
+                                RequestType.FEE -> "Fee"
+                                RequestType.VOLUNTEER -> "Free"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = when (request.type) {
+                                RequestType.FEE -> Color(0xFFFF6B35)
+                                RequestType.VOLUNTEER -> Color(0xFF00897B)
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = request.description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF49454F),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = Color(0xFF79747E),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = request.locationName,
                     style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF79747E),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                val typeColor = if (request.type == RequestType.FEE) FeeGreen else VolunteerBlue
-                val typeText = if (request.type == RequestType.FEE) "Fee" else "Volunteer"
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Icon(
+                    imageVector = Icons.Default.Navigation,
+                    contentDescription = null,
+                    tint = Color(0xFF79747E),
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = distanceText, // <-- 6. USE THE DYNAMIC distanceText
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF79747E)
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
                 AssistChip(
-                    onClick = { /* no-op */ },
+                    onClick = { },
                     label = {
                         Text(
-                            text = typeText,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
+                            text = request.category,
+                            style = MaterialTheme.typography.labelSmall
                         )
                     },
+                    modifier = Modifier.height(28.dp),
                     colors = AssistChipDefaults.assistChipColors(
-                        containerColor = typeColor.copy(alpha = 0.1f),
-                        labelColor = typeColor
+                        containerColor = Color(0xFFF5F5F5),
+                        labelColor = Color(0xFF49454F)
                     ),
                     border = null
                 )
