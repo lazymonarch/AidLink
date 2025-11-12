@@ -79,9 +79,7 @@ class AuthViewModel @Inject constructor(
     
     fun searchAddress(query: String) {
         viewModelScope.launch {
-            geocodingRepository.forwardGeocode(query) { results ->
-                searchResults.value = results
-            }
+            searchResults.value = geocodingRepository.forwardGeocode(query)
         }
     }
 
@@ -136,39 +134,39 @@ class AuthViewModel @Inject constructor(
 
     @SuppressLint("MissingPermission")
     fun detectLocation(
-        onResult: (areaString: String, geoPoint: GeoPoint, roundedLat: Double, roundedLon: Double, geohashCoarse: String) -> Unit,
+        onResult: (areaString: String, geoPoint: GeoPoint, lat: Double, lon: Double, geohash: String) -> Unit,
         onError: (String) -> Unit
     ) {
-        viewModelScope.launch {
-            try {
-                locationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                    .addOnSuccessListener { location ->
-                        if (location != null) {
-                            geocodingRepository.reverseGeocode(location.latitude, location.longitude) { address ->
-                                if (address != null) {
-                                    val geoPoint = GeoPoint(location.latitude, location.longitude)
-                                    val roundedLat = kotlin.math.round(location.latitude * 100) / 100
-                                    val roundedLon = kotlin.math.round(location.longitude * 100) / 100
-                                    val geohashCoarse = com.github.davidmoten.geo.GeoHash.encodeHash(roundedLat, roundedLon, 5)
-                                    onResult(address, geoPoint, roundedLat, roundedLon, geohashCoarse)
-                                } else {
-                                    onError("Could not find address for location.")
-                                }
-                            }
-                        } else {
-                            onError("Could not get location. Try enabling it.")
-                        }
+        val fused = LocationServices.getFusedLocationProviderClient(getApplication<Application>())
+        val token = com.google.android.gms.tasks.CancellationTokenSource().token
+
+        fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, token)
+            .addOnSuccessListener { location ->
+                if (location == null) {
+                    onError("Could not get current location. Try again outdoors.")
+                    return@addOnSuccessListener
+                }
+
+                viewModelScope.launch {
+                    try {
+                        val address = geocodingRepository.reverseGeocode(location.latitude, location.longitude)
+                            ?: "Unknown location"
+
+                        val geoPoint = GeoPoint(location.latitude, location.longitude)
+                        val geohash = com.github.davidmoten.geo.GeoHash.encodeHash(location.latitude, location.longitude, 7)
+
+                        onResult(address, geoPoint, location.latitude, location.longitude, geohash)
+                    } catch (e: Exception) {
+                        onError("Reverse geocoding failed: ${e.message}")
                     }
-                    .addOnFailureListener { e ->
-                        Log.e("AuthViewModel", "Location fetch failed", e)
-                        onError("Failed to get location: ${e.message}")
-                    }
-            } catch (e: Exception) {
-                Log.e("AuthViewModel", "Location permission error", e)
-                onError("Location permission is required.")
+                }
             }
-        }
+            .addOnFailureListener { e ->
+                Log.e("AuthViewModel", "Location fetch failed", e)
+                onError("Failed to get location: ${e.message}")
+            }
     }
+
 
     fun saveUserProfile(
         name: String,

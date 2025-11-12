@@ -14,10 +14,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.RequestType
@@ -28,29 +31,25 @@ import com.aidlink.utils.Geometries
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.extension.compose.MapboxMap
-import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
 import com.mapbox.maps.extension.compose.annotation.generated.CircleAnnotationGroup
 import com.mapbox.maps.extension.compose.style.standard.MapboxStandardStyle
 import com.mapbox.maps.plugin.annotation.generated.CircleAnnotationOptions
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HybridMapScreen(
     navController: NavController,
-    homeViewModel: HomeViewModel = hiltViewModel()
+    homeViewModel: HomeViewModel
 ) {
     val requests by homeViewModel.requests.collectAsState()
-    val userGeoPoint by homeViewModel.userGeoPoint.collectAsState() // This is the user's location
+    val userGeoPoint by homeViewModel.userGeoPoint.collectAsState()
+    val centerMapOnUserAction by homeViewModel.centerMapOnUserAction.collectAsState()
     val scope = rememberCoroutineScope()
     var selectedFilter by remember { mutableStateOf("All") }
 
-    val mapViewportState = rememberMapViewportState {
-        setCameraOptions {
-            center(Point.fromLngLat(80.2707, 13.0827)) // Default Chennai
-            zoom(13.0)
-        }
-    }
+    val mapViewportState = homeViewModel.mapViewportState
 
     val scaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = rememberStandardBottomSheetState(
@@ -58,17 +57,37 @@ fun HybridMapScreen(
         )
     )
 
-    LaunchedEffect(userGeoPoint) {
-        userGeoPoint?.let { location ->
-            scope.launch {
+    // Handle the one-time centering action from the ViewModel
+    LaunchedEffect(Unit) {
+        homeViewModel.centerMapOnUserAction.collectLatest { geoPoint ->
+            geoPoint?.let {
                 mapViewportState.flyTo(
                     cameraOptions = CameraOptions.Builder()
-                        .center(Point.fromLngLat(location.longitude, location.latitude))
+                        .center(Point.fromLngLat(it.longitude, it.latitude))
                         .zoom(13.0)
                         .build(),
                     animationOptions = null
                 )
+                // Consume the event
+                homeViewModel.onMapCentered()
             }
+        }
+    }
+
+    // Conditionally reset the map's zoom when the screen is resumed
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val currentZoom = mapViewportState.cameraState?.zoom
+                if (currentZoom != null && (currentZoom < 10.0 || currentZoom > 16.0)) {
+                    homeViewModel.resetMapToUserLocation()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -77,7 +96,7 @@ fun HybridMapScreen(
         sheetContent = {
             RequestsBottomSheetContent(
                 requests = requests,
-                userGeoPoint = userGeoPoint, // <-- 1. PASS USER'S LOCATION HERE
+                userGeoPoint = userGeoPoint,
                 onRequestClick = { requestId ->
                     navController.navigate("request_detail/$requestId")
                 }
@@ -133,9 +152,22 @@ fun HybridMapScreen(
                             .withCircleStrokeWidth(2.0)
                     }
                 )
+
+                userGeoPoint?.let { geoPoint ->
+                    CircleAnnotationGroup(
+                        listOf(
+                            CircleAnnotationOptions()
+                                .withPoint(Point.fromLngLat(geoPoint.longitude, geoPoint.latitude))
+                                .withCircleColor("#4A80F5")
+                                .withCircleRadius(10.0)
+                                .withCircleStrokeColor("#FFFFFF")
+                                .withCircleStrokeWidth(2.5)
+                                .withCircleStrokeColor("#1E3A75")
+                        )
+                    )
+                }
             }
 
-            // Search and Filter Chips
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -145,7 +177,7 @@ fun HybridMapScreen(
                 ElevatedCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(end = 64.dp), // Space for map controls
+                        .padding(end = 64.dp),
                     shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = Color.White
@@ -196,15 +228,13 @@ fun HybridMapScreen(
                 )
             }
 
-            // Map Controls
             Column(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 150.dp, end = 16.dp), // Pushed down to avoid compass
+                    .padding(top = 150.dp, end = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Zoom Buttons
                 FloatingActionButton(
                     onClick = {
                         scope.launch {
@@ -230,7 +260,7 @@ fun HybridMapScreen(
                                 cameraOptions = CameraOptions.Builder().zoom(maxOf(currentZoom - 1, 1.0)).build()
                             )
                         }
-                    },
+                     },
                     modifier = Modifier.size(48.dp),
                     containerColor = Color.White,
                     contentColor = Color(0xFF1C1B1F)
@@ -240,20 +270,8 @@ fun HybridMapScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Recenter Button
                 FloatingActionButton(
-                    onClick = {
-                        userGeoPoint?.let { location ->
-                            scope.launch {
-                                mapViewportState.flyTo(
-                                    cameraOptions = CameraOptions.Builder()
-                                        .center(Point.fromLngLat(location.longitude, location.latitude))
-                                        .zoom(13.0)
-                                        .build()
-                                )
-                            }
-                        }
-                    },
+                    onClick = { homeViewModel.resetMapToUserLocation() },
                     modifier = Modifier.size(56.dp),
                     containerColor = Color(0xFFE8DEF8),
                     contentColor = Color(0xFF1C1B1F)
@@ -296,7 +314,7 @@ fun HybridMapScreen(
 @Composable
 fun RequestsBottomSheetContent(
     requests: List<HelpRequest>,
-    userGeoPoint: GeoPoint?, // <-- 2. ACCEPT USER'S LOCATION
+    userGeoPoint: GeoPoint?,
     onRequestClick: (String) -> Unit
 ) {
     Column(
@@ -371,7 +389,7 @@ fun RequestsBottomSheetContent(
                 items(requests) { request ->
                     RequestCard(
                         request = request,
-                        userGeoPoint = userGeoPoint, // <-- 3. PASS IT DOWN TO THE CARD
+                        userGeoPoint = userGeoPoint,
                         onClick = { onRequestClick(request.id) }
                     )
                 }
@@ -387,24 +405,21 @@ fun RequestsBottomSheetContent(
 @Composable
 fun RequestCard(
     request: HelpRequest,
-    userGeoPoint: GeoPoint?, // <-- 4. ACCEPT USER'S LOCATION HERE
+    userGeoPoint: GeoPoint?,
     onClick: () -> Unit
 ) {
-    // 5. CALCULATE DISTANCE DYNAMICALLY
     val distanceText = remember(userGeoPoint, request) {
         if (userGeoPoint != null) {
             try {
                 val userLocation = Geometries.point(userGeoPoint.latitude, userGeoPoint.longitude)
                 val requestLocation = Geometries.point(request.latitude, request.longitude)
                 val distanceKm = userLocation.distance(requestLocation)
-                // Format to one decimal place
                 String.format("%.1f km", distanceKm)
             } catch (e: Exception) {
-                // Handle any potential calculation error
                 "N/A"
             }
         } else {
-            "..." // Placeholder while location is loading
+            "..."
         }
     }
 
@@ -524,7 +539,7 @@ fun RequestCard(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = distanceText, // <-- 6. USE THE DYNAMIC distanceText
+                    text = distanceText,
                     style = MaterialTheme.typography.labelSmall,
                     color = Color(0xFF79747E)
                 )

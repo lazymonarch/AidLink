@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,8 +86,11 @@ fun ProfileSetupScreen(
     }
 
     val locationPermissionState = rememberPermissionState(
-        Manifest.permission.ACCESS_COARSE_LOCATION
+        Manifest.permission.ACCESS_FINE_LOCATION
     )
+
+    val finePermission = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
+    val coarsePermission = rememberPermissionState(Manifest.permission.ACCESS_COARSE_LOCATION)
 
     LaunchedEffect(key1 = uiState) {
         if (uiState is AuthUiState.AuthSuccessExistingUser) {
@@ -170,7 +174,7 @@ fun ProfileSetupScreen(
                         if (geoPoint != null) geoPoint = null
                     },
                     onDetectLocationClick = {
-                        if (locationPermissionState.status.isGranted) {
+                        if (finePermission.status.isGranted || coarsePermission.status.isGranted) {
                             authViewModel.detectLocation(
                                 onResult = { areaString, newGeoPoint, rLat, rLon, gCoarse ->
                                     area = areaString
@@ -185,7 +189,7 @@ fun ProfileSetupScreen(
                                 }
                             )
                         } else {
-                            locationPermissionState.launchPermissionRequest()
+                            finePermission.launchPermissionRequest()
                         }
                     },
                     onLocationSelected = { lat, lon ->
@@ -227,10 +231,13 @@ private fun Page1Content(
         Spacer(modifier = Modifier.height(32.dp))
 
         LinearProgressIndicator(
-            progress = 0.33f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp),
+        progress = { 0.33f },
+        modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp),
+        color = ProgressIndicatorDefaults.linearColor,
+        trackColor = ProgressIndicatorDefaults.linearTrackColor,
+        strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
         )
 
         Spacer(modifier = Modifier.height(40.dp))

@@ -7,6 +7,9 @@ import com.aidlink.model.HelpRequest
 import com.aidlink.model.Offer
 import com.github.davidmoten.geo.GeoHash
 import com.google.firebase.firestore.GeoPoint
+import com.mapbox.geojson.Point
+import com.mapbox.maps.CameraOptions
+import com.mapbox.maps.extension.compose.animation.viewport.MapViewportState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -36,6 +39,16 @@ class HomeViewModel @Inject constructor(
     val userGeoPoint: StateFlow<GeoPoint?> = _userGeoPoint.asStateFlow()
     private val _radiusKm = MutableStateFlow(10.0)
 
+    val mapViewportState = MapViewportState().apply {
+        setCameraOptions {
+            center(Point.fromLngLat(80.2707, 13.0827)) // Default to Chennai
+            zoom(13.0)
+        }
+    }
+
+    private val _centerMapOnUserAction = MutableStateFlow<GeoPoint?>(null)
+    val centerMapOnUserAction: StateFlow<GeoPoint?> = _centerMapOnUserAction
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val requests: StateFlow<List<HelpRequest>> = repository.getAuthStateFlow()
         .flatMapLatest { user ->
@@ -43,24 +56,15 @@ class HomeViewModel @Inject constructor(
                 flowOf(emptyList())
             } else {
                 repository.getUserProfile(user.uid).flatMapLatest { profile ->
-                    // Use roundedLat/roundedLon if available, fallback to location
-                    val userLocation = when {
-                        profile?.roundedLat != null && profile.roundedLon != null -> {
-                            GeoPoint(profile.roundedLat, profile.roundedLon)
-                        }
-                        profile?.location != null -> profile.location
-                        else -> null
-                    }
-                    
-                    android.util.Log.d("HomeViewModel", "User profile loaded: area=${profile?.area}, roundedLat=${profile?.roundedLat}, roundedLon=${profile?.roundedLon}, location=${profile?.location}")
-                    android.util.Log.d("HomeViewModel", "Using userLocation: $userLocation")
-                    
+                    val userLocation = profile?.location
                     if (userLocation == null) {
-                        android.util.Log.d("HomeViewModel", "No user location available, returning empty list")
                         flowOf(emptyList())
                     } else {
                         _userGeoPoint.value = userLocation
-                        android.util.Log.d("HomeViewModel", "Querying nearby requests for location: lat=${userLocation.latitude}, lon=${userLocation.longitude}")
+                        // Center the map only once when the location is first retrieved
+                        if (_centerMapOnUserAction.value == null) {
+                            _centerMapOnUserAction.value = userLocation
+                        }
                         _radiusKm.flatMapLatest { radius ->
                             repository.getNearbyHelpRequests(userLocation, radius)
                         }
@@ -70,13 +74,29 @@ class HomeViewModel @Inject constructor(
         }
         .catch {
             emit(emptyList())
-            // TODO: Log this error
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun onMapCentered() {
+        _centerMapOnUserAction.value = null
+    }
+
+    fun resetMapToUserLocation() {
+        val userLocation = _userGeoPoint.value
+        if (userLocation != null) {
+            mapViewportState.flyTo(
+                cameraOptions = CameraOptions.Builder()
+                    .center(Point.fromLngLat(userLocation.longitude, userLocation.latitude))
+                    .zoom(13.0)
+                    .build()
+            )
+        }
+    }
 
     fun setRadius(km: Double) {
         _radiusKm.value = km
     }
+
     private val _selectedRequest = MutableStateFlow<HelpRequest?>(null)
     val selectedRequest: StateFlow<HelpRequest?> = _selectedRequest.asStateFlow()
 
@@ -111,7 +131,13 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun postRequest(title: String, description: String, category: String, compensation: String) {
+    fun postRequest(
+        title: String,
+        description: String,
+        category: String,
+        compensation: String,
+        locationName: String
+    ) {
         viewModelScope.launch {
             _postRequestUiState.value = PostRequestUiState.Loading
 
@@ -125,27 +151,16 @@ class HomeViewModel @Inject constructor(
                 return@launch
             }
 
-            // Use the precise location from the profile to post
-            val userGeoPoint = userProfile.location
-            val locationName = userProfile.area
+            val lat = userProfile.roundedLat
+            val lon = userProfile.roundedLon
 
-            if (userGeoPoint == null) {
+            if (lat == null || lon == null) {
                 _postRequestUiState.value = PostRequestUiState.Error("Please set your location in your profile first.")
                 return@launch
             }
 
-            val lat = userGeoPoint.latitude
-            val lon = userGeoPoint.longitude
-
-            //
-            // --- START OF FIX ---
-            //
-            // Your query uses a 5-char coarse geohash. You must create and save it here.
-            val geohash = GeoHash.encodeHash(lat, lon, 7) // 7 chars = ~150m precision
-            val geohashCoarse = GeoHash.encodeHash(lat, lon, 5) // 5 chars = ~2.4km precision
-            //
-            // --- END OF FIX ---
-            //
+            val geohash = GeoHash.encodeHash(lat, lon, 7)
+            val geohashCoarse = GeoHash.encodeHash(lat, lon, 5)
 
             val newRequest = HelpRequest(
                 userId = currentUser.uid,
@@ -156,11 +171,10 @@ class HomeViewModel @Inject constructor(
                 locationName = locationName,
                 type = if (compensation == "Fee") com.aidlink.model.RequestType.FEE else com.aidlink.model.RequestType.VOLUNTEER,
                 status = "open",
-
                 latitude = lat,
                 longitude = lon,
                 geohash = geohash,
-                geohashCoarse = geohashCoarse // <-- THE FIXED LINE
+                geohashCoarse = geohashCoarse
             )
             val success = repository.createRequest(newRequest)
             _postRequestUiState.value = if (success) PostRequestUiState.Success else PostRequestUiState.Error("Failed to post request.")
