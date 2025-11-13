@@ -1,8 +1,10 @@
+///Users/lakshan/AndroidStudioProjects/AidLink/app/src/main/java/com/aidlink/ui/BottomNavigationBar.kt
 
 package com.aidlink.ui
 
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.automirrored.outlined.Chat
@@ -29,7 +31,8 @@ sealed class BottomNavItem(
     val label: String
 ) {
     object Home : BottomNavItem("home", Icons.Filled.Home, Icons.Outlined.Home, "Home")
-    object MyActivity : BottomNavItem("activity", Icons.Filled.Assignment, Icons.AutoMirrored.Outlined.Assignment, "My Activity")
+    object MyActivity : BottomNavItem("activity",
+        Icons.AutoMirrored.Filled.Assignment, Icons.AutoMirrored.Outlined.Assignment, "My Activity")
     object Chats : BottomNavItem("chats", Icons.AutoMirrored.Filled.Chat, Icons.AutoMirrored.Outlined.Chat, "Chats")
     object Profile : BottomNavItem("profile", Icons.Filled.Person, Icons.Outlined.Person, "Profile")
 }

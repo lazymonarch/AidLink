@@ -1,3 +1,5 @@
+///Users/lakshan/AndroidStudioProjects/AidLink/app/src/main/java/com/aidlink/ui/AppNavigation.kt
+
 package com.aidlink.ui
 
 import androidx.compose.foundation.layout.padding
@@ -51,13 +53,12 @@ fun AppNavigation() {
                     popUpTo(navController.graph.id) { inclusive = true }
                 }
             }
-            AuthProfileState.Unauthenticated -> {
+            AuthProfileState.Unauthenticated -> { // Corrected: Navigate to login when no user is logged in or after logout
                 navController.navigate("login") {
                     popUpTo(navController.graph.id) { inclusive = true }
                 }
             }
-            AuthProfileState.NeedsProfile -> {
-                // User is logged in but has no profile
+            AuthProfileState.NeedsProfile -> { // Corrected: Navigate to profile_setup when user is authenticated but needs profile
                 navController.navigate("profile_setup") {
                     popUpTo(navController.graph.id) { inclusive = true }
                 }
@@ -203,7 +204,10 @@ fun AppNavigation() {
                     homeViewModel.getRequestById(requestId)
                     RequestDetailScreen(
                         homeViewModel = homeViewModel,
-                        onBackClicked = { navController.popBackStack() }
+                        onBackClicked = { navController.popBackStack() },
+                        onNavigateToProfile = { userId ->
+                            // TODO: Implement profile screen navigation
+                        }
                     )
                 }
             }

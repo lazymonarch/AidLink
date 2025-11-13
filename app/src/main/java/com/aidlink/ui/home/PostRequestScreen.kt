@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,6 +13,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.HomeViewModel
@@ -46,7 +48,7 @@ fun PostRequestScreen(
         CategoryItem("Tutoring & Education", Icons.Default.School),
         CategoryItem("Tech Support", Icons.Default.Computer),
         CategoryItem("Pet Care", Icons.Default.Pets),
-        CategoryItem("Errands", Icons.Default.DirectionsRun),
+        CategoryItem("Errands", Icons.AutoMirrored.Filled.DirectionsRun),
         CategoryItem("Other", Icons.Default.MoreHoriz)
     )
 
@@ -283,7 +285,7 @@ fun PostRequestScreen(
                             )
                         } else {
                             Icon(
-                                imageVector = Icons.Default.Send,
+                                imageVector = Icons.AutoMirrored.Filled.Send,
                                 contentDescription = null,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -530,7 +532,11 @@ private fun PostLocationField(
             onValueChange = {},
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onLocationClick),
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null, // Added rememberRipple()
+                    onClick = onLocationClick
+                ),
             enabled = false,
             placeholder = {
                 Text(

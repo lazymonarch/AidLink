@@ -3,6 +3,7 @@ package com.aidlink.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,18 +15,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.RequestType
 import com.aidlink.viewmodel.HomeViewModel
-// Import GeoPoint and Geometries
 import com.google.firebase.firestore.GeoPoint
 import com.aidlink.utils.Geometries
 import com.mapbox.geojson.Point
@@ -74,8 +72,8 @@ fun HybridMapScreen(
         }
     }
 
-    // Conditionally reset the map's zoom when the screen is resumed
-    val lifecycleOwner = LocalLifecycleOwner.current
+    // Conditionally reset the map\'s zoom when the screen is resumed
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -189,7 +187,11 @@ fun HybridMapScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { /* TODO: Open search */ }
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null, // Added rememberRipple()
+                                onClick = { /* TODO: Open search */ }
+                            )
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

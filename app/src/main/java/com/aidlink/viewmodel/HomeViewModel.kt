@@ -1,3 +1,5 @@
+///Users/lakshan/AndroidStudioProjects/AidLink/app/src/main/java/com/aidlink/viewmodel/HomeViewModel.kt
+
 package com.aidlink.viewmodel
 
 import androidx.lifecycle.ViewModel
@@ -5,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.aidlink.data.AuthRepository
 import com.aidlink.model.HelpRequest
 import com.aidlink.model.Offer
+import com.aidlink.utils.Geometries
 import com.github.davidmoten.geo.GeoHash
 import com.google.firebase.firestore.GeoPoint
 import com.mapbox.geojson.Point
@@ -27,7 +30,7 @@ sealed class RespondUiState {
     object Idle : RespondUiState()
     object Loading : RespondUiState()
     object Success : RespondUiState()
-    data class Error(val message: String) : PostRequestUiState()
+    data class Error(val message: String) : RespondUiState()  // Fixed: Changed from PostRequestUiState
 }
 
 @HiltViewModel
@@ -41,7 +44,7 @@ class HomeViewModel @Inject constructor(
 
     val mapViewportState = MapViewportState().apply {
         setCameraOptions {
-            center(Point.fromLngLat(80.2707, 13.0827)) // Default to Chennai
+            center(Point.fromLngLat(80.2707, 13.0827))
             zoom(13.0)
         }
     }
@@ -61,7 +64,6 @@ class HomeViewModel @Inject constructor(
                         flowOf(emptyList())
                     } else {
                         _userGeoPoint.value = userLocation
-                        // Center the map only once when the location is first retrieved
                         if (_centerMapOnUserAction.value == null) {
                             _centerMapOnUserAction.value = userLocation
                         }
@@ -100,6 +102,24 @@ class HomeViewModel @Inject constructor(
     private val _selectedRequest = MutableStateFlow<HelpRequest?>(null)
     val selectedRequest: StateFlow<HelpRequest?> = _selectedRequest.asStateFlow()
 
+    val distanceFromUser: StateFlow<String> = combine(
+        selectedRequest,
+        userGeoPoint
+    ) { request, userLocation ->
+        if (request != null && userLocation != null) {
+            try {
+                val userPoint = Geometries.point(userLocation.latitude, userLocation.longitude)
+                val requestPoint = Geometries.point(request.latitude, request.longitude)
+                val distanceKm = userPoint.distance(requestPoint)
+                String.format("%.1f km away", distanceKm)
+            } catch (e: Exception) {
+                "N/A"
+            }
+        } else {
+            "..."
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "...")
+
     private val _postRequestUiState = MutableStateFlow<PostRequestUiState>(PostRequestUiState.Idle)
     val postRequestUiState: StateFlow<PostRequestUiState> = _postRequestUiState.asStateFlow()
 
@@ -117,7 +137,11 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _respondUiState.value = RespondUiState.Loading
             val success = repository.makeOffer(requestId)
-            _respondUiState.value = (if (success) RespondUiState.Success else RespondUiState.Error("Failed to send offer.")) as RespondUiState
+            _respondUiState.value = if (success) {
+                RespondUiState.Success
+            } else {
+                RespondUiState.Error("Failed to send offer.")
+            }
         }
     }
 
@@ -136,7 +160,7 @@ class HomeViewModel @Inject constructor(
         description: String,
         category: String,
         compensation: String,
-        locationName: String
+        locationName: String = ""  // Added default parameter
     ) {
         viewModelScope.launch {
             _postRequestUiState.value = PostRequestUiState.Loading
@@ -168,7 +192,7 @@ class HomeViewModel @Inject constructor(
                 title = title,
                 description = description,
                 category = category,
-                locationName = locationName,
+                locationName = locationName.ifEmpty { userProfile.area },
                 type = if (compensation == "Fee") com.aidlink.model.RequestType.FEE else com.aidlink.model.RequestType.VOLUNTEER,
                 status = "open",
                 latitude = lat,

@@ -1,17 +1,15 @@
 package com.aidlink.ui.home
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,10 +21,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aidlink.model.HelpRequest
+import com.aidlink.model.Offer
 import com.aidlink.model.RequestType
 import com.aidlink.viewmodel.HomeViewModel
 import com.aidlink.viewmodel.RespondUiState
-import com.aidlink.model.Offer
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import com.mapbox.geojson.Point
@@ -41,12 +39,16 @@ import java.util.*
 @Composable
 fun RequestDetailScreen(
     homeViewModel: HomeViewModel,
-    onBackClicked: () -> Unit
+    onBackClicked: () -> Unit,
+    onNavigateToProfile: (String) -> Unit = {}
 ) {
     val request by homeViewModel.selectedRequest.collectAsState()
     val offers by homeViewModel.offers.collectAsState()
     val uiState by homeViewModel.respondUiState.collectAsState()
+    val distance by homeViewModel.distanceFromUser.collectAsState()
     val currentUser = Firebase.auth.currentUser
+
+    var showMoreMenu by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -55,358 +57,647 @@ fun RequestDetailScreen(
     }
 
     Scaffold(
-        containerColor = Color.Black,
         topBar = {
             TopAppBar(
-                title = { Text("Request Details", color = Color.White) },
-                navigationIcon = { 
-                    IconButton(onClick = onBackClicked) { 
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White) 
-                    } 
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black)
-            )
-        },
-        bottomBar = {
-            if (request != null && currentUser != null) {
-                if (request!!.userId == currentUser.uid) {
-                    RequesterBottomBar(offers = offers, onAccept = { /* Handled in MyActivityScreen */ })
-                } else {
-                    val hasAlreadyOffered = offers.any { it.helperId == currentUser.uid }
-                    HelperBottomBar(
-                        uiState = uiState,
-                        hasAlreadyOffered = hasAlreadyOffered,
-                        onMakeOffer = { homeViewModel.onMakeOffer(request!!.id) }
-                    )
-                }
-            }
-        }
-    ) { innerPadding ->
-        request?.let {
-            RequestDetailsContent(it, innerPadding)
-        } ?: run {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color.White)
-            }
-        }
-    }
-}
-
-@Composable
-private fun HelperBottomBar(
-    uiState: RespondUiState,
-    hasAlreadyOffered: Boolean,
-    onMakeOffer: () -> Unit
-) {
-    Box(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        when {
-            hasAlreadyOffered -> {
-                Text("Offer Sent!", color = Color.Green, fontWeight = FontWeight.Bold)
-            }
-            uiState is RespondUiState.Loading -> CircularProgressIndicator(color = Color.White)
-            uiState is RespondUiState.Success -> Text("Offer Sent!", color = Color.Green, fontWeight = FontWeight.Bold)
-            uiState is RespondUiState.Error -> Text(uiState.message, color = MaterialTheme.colorScheme.error)
-            else -> {
-                Button(
-                    onClick = onMakeOffer,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
-                ) {
-                    Text("I Can Help", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RequesterBottomBar(offers: List<Offer>, onAccept: (Offer) -> Unit) {
-    Surface(color = Color.Black, tonalElevation = 4.dp) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = if (offers.isEmpty()) "No offers yet." else "${offers.size} offer(s) received.",
-                color = Color.White,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                "You can manage offers from the 'My Activity' screen.",
-                color = Color.Gray,
-                fontSize = 12.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun RequestDetailsContent(request: HelpRequest, innerPadding: PaddingValues) {
-    Column(
-        modifier = Modifier
-            .padding(innerPadding)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-        // Header Card with Title and User Info
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                // Title
-                Text(
-                    text = request.title,
-                    color = Color.White,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // User Info Row
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // User Avatar Placeholder
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .padding(8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                title = { },
+                navigationIcon = {
+                    IconButton(onClick = onBackClicked) {
                         Icon(
-                            Icons.Default.Person,
-                            contentDescription = "User",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    
-                    Spacer(modifier = Modifier.width(12.dp))
-                    
-                    Column {
-                        Text(
-                            text = request.userName.ifEmpty { "Anonymous User" },
-                            color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp
+                },
+                actions = {
+                    IconButton(onClick = { /* TODO: Share functionality */ }) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share request",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        
-                        // Timestamp
-                        request.timestamp?.let { timestamp ->
-                            val dateFormat = SimpleDateFormat("MMM dd, yyyy 'at' hh:mm a", Locale.getDefault())
-                            Text(
-                                text = dateFormat.format(timestamp.toDate()),
-                                color = Color.Gray,
-                                fontSize = 12.sp
+                    }
+                    Box {
+                        IconButton(onClick = { showMoreMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More options",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Report") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    // TODO: Report functionality
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Flag, contentDescription = null)
+                                }
                             )
                         }
                     }
-                }
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Description Card
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = "Description",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text(
-                    text = request.description.ifEmpty { "No description provided." },
-                    color = Color.LightGray,
-                    style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 24.sp
-                )
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Details Card
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = "Details",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Category
-                DetailRowWithIcon(
-                    icon = Icons.Default.Category,
-                    label = "Category",
-                    value = request.category.ifEmpty { "General" }
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // Compensation Type
-                val compensationText = if (request.type == RequestType.FEE) "Paid Help" else "Volunteer"
-                val compensationColor = if (request.type == RequestType.FEE) Color(0xFF4CAF50) else Color(0xFF2196F3)
-                
-                DetailRowWithIcon(
-                    icon = Icons.Default.AttachMoney,
-                    label = "Type",
-                    value = compensationText,
-                    valueColor = compensationColor
-                )
-                
-                // Show compensation amount if it's a paid request
-                if (request.type == RequestType.FEE && request.compensation.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    DetailRowWithIcon(
-                        icon = Icons.Default.AttachMoney,
-                        label = "Amount",
-                        value = request.compensation,
-                        valueColor = Color(0xFF4CAF50)
-                    )
-                }
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Location Map Card
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = "Location",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // Mini Map
-                Card(
-                    shape = RoundedCornerShape(12.dp),
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { innerPadding ->
+        request?.let { req ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentPadding = PaddingValues(bottom = if (currentUser?.uid != req.userId) 140.dp else 16.dp)
                 ) {
-                    RequestLocationMap(request = request)
+                    item { RequestHeader(request = req) }
+                    item { HorizontalDivider(thickness = 8.dp, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)) }
+                    item { RequesterInfoCard(request = req, onClick = { onNavigateToProfile(req.userId) }) }
+                    item { DescriptionSection(description = req.description) }
+                    item { HorizontalDivider(thickness = 8.dp, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)) }
+                    item { DetailsSection(request = req, offerCount = offers.size, distance = distance) }
+                    item { HorizontalDivider(thickness = 8.dp, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)) }
+                    item { LocationSection(request = req) }
                 }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // Location Name
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.LocationOn,
-                        contentDescription = "Location",
-                        tint = Color.Gray,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = request.locationName.ifEmpty { "Location not specified" },
-                        color = Color.LightGray,
-                        fontSize = 14.sp
+
+                if (currentUser != null && currentUser.uid != req.userId) {
+                    BottomCTABar(
+                        request = req,
+                        offers = offers,
+                        uiState = uiState,
+                        currentUserId = currentUser.uid,
+                        onMakeOffer = { homeViewModel.onMakeOffer(req.id) },
+                        modifier = Modifier.align(Alignment.BottomCenter)
                     )
                 }
             }
+        } ?: run {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
         }
-        
-        // Add some bottom padding for the floating action button
-        Spacer(modifier = Modifier.height(100.dp))
     }
 }
 
 @Composable
-private fun DetailRowWithIcon(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    valueColor: Color = Color.White
-) {
+private fun RequestHeader(request: HelpRequest) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(24.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(
+                text = request.title,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = when (request.type) {
+                    RequestType.FEE -> MaterialTheme.colorScheme.primaryContainer
+                    RequestType.VOLUNTEER -> MaterialTheme.colorScheme.tertiaryContainer
+                }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = when (request.type) {
+                            RequestType.FEE -> Icons.Default.AttachMoney
+                            RequestType.VOLUNTEER -> Icons.Default.Favorite
+                        },
+                        contentDescription = null,
+                        tint = when (request.type) {
+                            RequestType.FEE -> MaterialTheme.colorScheme.primary
+                            RequestType.VOLUNTEER -> MaterialTheme.colorScheme.tertiary
+                        },
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = when (request.type) {
+                            RequestType.FEE -> "Paid Help"
+                            RequestType.VOLUNTEER -> "Volunteer"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = when (request.type) {
+                            RequestType.FEE -> MaterialTheme.colorScheme.primary
+                            RequestType.VOLUNTEER -> MaterialTheme.colorScheme.tertiary
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        AssistChip(
+            onClick = { },
+            label = { Text(request.category) },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Category,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+            },
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            border = null
+        )
+    }
+}
+
+@Composable
+private fun RequesterInfoCard(request: HelpRequest, onClick: () -> Unit) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "User avatar",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+                Surface(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .align(Alignment.BottomEnd),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Verified,
+                        contentDescription = "Verified",
+                        tint = Color(0xFF1E88E5),
+                        modifier = Modifier.padding(2.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = request.userName.ifEmpty { "Anonymous User" },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                request.timestamp?.let { timestamp ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = formatTimestamp(timestamp.toDate().time),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFFFC107),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = "4.8", // Placeholder
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text("•", color = MaterialTheme.colorScheme.outline)
+                    Text(
+                        text = "12 completed", // Placeholder
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = "View profile",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DescriptionSection(description: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(24.dp)
+    ) {
+        Text(
+            text = "Description",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = description.ifEmpty { "No description provided." },
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            lineHeight = 24.sp
+        )
+    }
+}
+
+@Composable
+private fun DetailsSection(request: HelpRequest, offerCount: Int, distance: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(24.dp)
+    ) {
+        Text(
+            text = "Details",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        DetailRow(
+            icon = Icons.Default.Category,
+            label = "Category",
+            value = request.category.ifEmpty { "General" },
+            iconTint = Color(0xFF6750A4)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        DetailRow(
+            icon = Icons.Default.Navigation,
+            label = "Distance",
+            value = distance,
+            iconTint = Color(0xFF00897B)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        DetailRow(
+            icon = Icons.Default.People,
+            label = "Offers",
+            value = if (offerCount > 0) "$offerCount people offered" else "No offers yet",
+            iconTint = MaterialTheme.colorScheme.primary
+        )
+        if (request.status != "open") {
+            Spacer(modifier = Modifier.height(12.dp))
+            DetailRow(
+                icon = Icons.Default.Info,
+                label = "Status",
+                value = when (request.status) {
+                    "in_progress" -> "In Progress"
+                    "completed" -> "Completed"
+                    else -> request.status.replaceFirstChar { it.uppercase() }
+                },
+                iconTint = when (request.status) {
+                    "in_progress" -> Color(0xFF1E88E5)
+                    "completed" -> Color(0xFF43A047)
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(icon: ImageVector, label: String, value: String, iconTint: Color) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = Color.Gray,
-            modifier = Modifier.size(20.dp)
-        )
-        
-        Spacer(modifier = Modifier.width(12.dp))
-        
-        Text(
-            text = label,
-            color = Color.Gray,
-            fontSize = 14.sp,
-            modifier = Modifier.weight(1f)
-        )
-        
-        Text(
-            text = value,
-            color = valueColor,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Surface(
+            shape = CircleShape,
+            color = iconTint.copy(alpha = 0.12f),
+            modifier = Modifier.size(40.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 
 @Composable
-private fun RequestLocationMap(request: HelpRequest) {
-    val mapViewportState = rememberMapViewportState {
-        setCameraOptions {
-            center(Point.fromLngLat(request.longitude, request.latitude))
-            zoom(15.0) // Closer zoom for detail view
+private fun LocationSection(request: HelpRequest) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(24.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Location",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            TextButton(onClick = { /* TODO: Open in maps */ }) {
+                Text(
+                    "Open in Maps",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Default.OpenInNew,
+                    contentDescription = "Open in Maps",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.LocationOn,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = request.locationName.ifEmpty { "Location not specified" },
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        ElevatedCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp),
+            shape = RoundedCornerShape(16.dp),
+            onClick = { /* TODO: Open full screen map */ }
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                MapboxMap(
+                    modifier = Modifier.fillMaxSize(),
+                    mapViewportState = rememberMapViewportState {
+                        setCameraOptions {
+                            center(Point.fromLngLat(request.longitude, request.latitude))
+                            zoom(14.0)
+                        }
+                    }
+                ) {
+                    CircleAnnotationGroup(
+                        annotations = listOf(
+                            CircleAnnotationOptions()
+                                .withPoint(Point.fromLngLat(request.longitude, request.latitude))
+                                .withCircleRadius(12.0)
+                                .withCircleColor("#FF6B35")
+                                .withCircleStrokeColor("#FFFFFF")
+                                .withCircleStrokeWidth(2.0)
+                                .withCircleOpacity(0.9)
+                        )
+                    )
+                }
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(12.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    shadowElevation = 4.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInFull,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "Expand",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
         }
     }
+}
 
-    MapboxMap(
-        modifier = Modifier.fillMaxSize(),
-        mapViewportState = mapViewportState
+@Composable
+private fun BottomCTABar(
+    request: HelpRequest,
+    offers: List<Offer>,
+    uiState: RespondUiState,
+    currentUserId: String,
+    onMakeOffer: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val hasAlreadyOffered = offers.any { it.helperId == currentUserId }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 12.dp
     ) {
-        // Request location marker
-        CircleAnnotationGroup(
-            annotations = listOf(
-                CircleAnnotationOptions()
-                    .withPoint(Point.fromLngLat(request.longitude, request.latitude))
-                    .withCircleRadius(12.0)
-                    .withCircleColor("#FF5722")
-                    .withCircleStrokeColor("#FFFFFF")
-                    .withCircleStrokeWidth(3.0)
-                    .withCircleOpacity(0.9)
-            )
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (offers.isNotEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.People,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "${offers.size} ${if (offers.size == 1) "person has" else "people have"} offered to help",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            when {
+                hasAlreadyOffered -> Button(
+                    onClick = { },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    enabled = false,
+                    colors = ButtonDefaults.buttonColors(
+                        disabledContainerColor = MaterialTheme.colorScheme.tertiary,
+                        disabledContentColor = MaterialTheme.colorScheme.onTertiary
+                    )
+                ) {
+                    Icon(Icons.Default.CheckCircle, "Offer Sent", Modifier.size(24.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Offer Sent", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+                uiState is RespondUiState.Loading -> Button(
+                    onClick = { },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    enabled = false
+                ) {
+                    CircularProgressIndicator(Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                }
+                request.status == "open" -> Button(
+                    onClick = onMakeOffer,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 8.dp)
+                ) {
+                    Icon(Icons.Default.Handshake, null, Modifier.size(24.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Offer to Help", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+                else -> Button(
+                    onClick = { },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    enabled = false
+                ) {
+                    val (icon, text) = when (request.status) {
+                        "in_progress" -> Icons.Default.Pending to "In Progress"
+                        "completed" -> Icons.Default.CheckCircle to "Completed"
+                        else -> Icons.Default.Block to "Not Available"
+                    }
+                    Icon(icon, null, Modifier.size(24.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            if (uiState is RespondUiState.Error) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Error, null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.width(4.dp))
+                    Text(uiState.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            if (uiState is RespondUiState.Success) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF43A047))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Your offer has been sent successfully!", color = Color(0xFF43A047), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+private fun formatTimestamp(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+
+    return when {
+        diff < 60_000 -> "Just now"
+        diff < 3_600_000 -> "${diff / 60_000}m ago"
+        diff < 86_400_000 -> "${diff / 3_600_000}h ago"
+        diff < 604_800_000 -> "${diff / 86_400_000}d ago"
+        else -> SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(timestamp))
     }
 }

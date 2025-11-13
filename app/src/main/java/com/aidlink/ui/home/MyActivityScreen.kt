@@ -1,64 +1,79 @@
-
 package com.aidlink.ui.home
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.RateReview
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.aidlink.model.HelpRequest
-import com.aidlink.model.Offer
-import com.aidlink.ui.theme.AidLinkTheme
-import com.aidlink.viewmodel.HomeViewModel
 import com.aidlink.viewmodel.MyActivityViewModel
-import com.google.firebase.Timestamp
-import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MyActivityScreen(
     myActivityViewModel: MyActivityViewModel,
     onNavigateToChat: (chatId: String, otherUserName: String) -> Unit,
     navController: NavController
 ) {
-    val tabTitles = listOf("My Requests", "My Responses", "Completed")
-    val pagerState = rememberPagerState { tabTitles.size }
+    val pagerState = rememberPagerState(pageCount = { 3 })
     val coroutineScope = rememberCoroutineScope()
     val currentUser = Firebase.auth.currentUser
 
     val myRequests by myActivityViewModel.myRequests.collectAsState()
     val myResponses by myActivityViewModel.myResponses.collectAsState()
     val completedRequests by myActivityViewModel.completedRequests.collectAsState()
+
     var managingRequest by remember { mutableStateOf<HelpRequest?>(null) }
 
     if (managingRequest != null) {
@@ -73,429 +88,413 @@ fun MyActivityScreen(
                 myActivityViewModel.onDeleteRequest(managingRequest!!.id)
                 managingRequest = null
             },
-            onCancel = {
-                myActivityViewModel.onCancelRequest(managingRequest!!.id)
+            onEdit = {
+                val req = managingRequest
                 managingRequest = null
-            },
-            onConfirm = {
-                myActivityViewModel.onConfirmCompletion(managingRequest!!)
-                managingRequest = null
-            },
-            onNavigateToEdit = { requestId ->
-                managingRequest = null // Close dialog before navigating
-                navController.navigate("edit_request/$requestId")
+                navController.navigate("edit_request/${req!!.id}")
             }
         )
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("My Activity", fontWeight = FontWeight.Bold) },
-            )
-        }
-    ) { innerPadding ->
-        Column(modifier = Modifier.padding(innerPadding)) {
-            TabRow(
-                selectedTabIndex = pagerState.currentPage,
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
-                tabTitles.forEachIndexed { index, title ->
+                Text(
+                    text = "My Activity",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                )
+
+                TabRow(
+                    selectedTabIndex = pagerState.currentPage,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    indicator = { tabPositions ->
+                        if (pagerState.currentPage < tabPositions.size) {
+                            TabRowDefaults.SecondaryIndicator(
+                                modifier = Modifier.tabIndicatorOffset(
+                                    currentTabPosition = tabPositions[pagerState.currentPage]
+                                ),
+                                height = 3.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    divider = {
+                        HorizontalDivider(
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    }
+                ) {
                     Tab(
-                        selected = pagerState.currentPage == index,
-                        onClick = {
-                            coroutineScope.launch { pagerState.animateScrollToPage(index) }
-                        },
-                        text = { Text(title) }
+                        selected = pagerState.currentPage == 0,
+                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                        text = {
+                            TabWithBadge(
+                                title = "My Requests",
+                                count = myRequests.size,
+                                isSelected = pagerState.currentPage == 0
+                            )
+                        }
+                    )
+
+                    Tab(
+                        selected = pagerState.currentPage == 1,
+                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(1) } },
+                        text = {
+                            TabWithBadge(
+                                title = "My Responses",
+                                count = myResponses.size,
+                                isSelected = pagerState.currentPage == 1
+                            )
+                        }
+                    )
+
+                    Tab(
+                        selected = pagerState.currentPage == 2,
+                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(2) } },
+                        text = {
+                            TabWithBadge(
+                                title = "Completed",
+                                count = completedRequests.size,
+                                isSelected = pagerState.currentPage == 2
+                            )
+                        }
                     )
                 }
             }
-
-            HorizontalPager(state = pagerState) { page ->
-                val listToShow = when (page) {
-                    0 -> myRequests
-                    1 -> myResponses
-                    2 -> completedRequests
-                    else -> emptyList()
-                }
-
-                val emptyMessage = when (page) {
-                    0 -> "You haven't posted any requests."
-                    1 -> "You haven't responded to any requests."
-                    2 -> "You have no completed requests."
-                    else -> ""
-                }
-
-                if (listToShow.isEmpty()) {
-                    EmptyState(message = emptyMessage)
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(items = listToShow, key = { it.id }) { request ->
-                            Column {
-                                ActivityRequestCard(
-                                    request = request,
-                                    currentUser = currentUser,
-                                    onClick = {
-                                        if (request.status == "completed" || request.status == "pending_completion") {
-                                            managingRequest = request
-                                        } else if (request.userId == currentUser?.uid) {
-                                            managingRequest = request
-                                        } else if (request.status == "in_progress") {
-                                            onNavigateToChat(request.id, request.userName)
-                                        }
-                                    }
-                                )
-
-                                if (page == 2 && request.reviewStatus[currentUser?.uid] == "pending") {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Button(
-                                        onClick = {
-                                            val isCurrentUserTheRequester = request.userId == currentUser?.uid
-                                            val revieweeId = if (isCurrentUserTheRequester) {
-                                                request.responderId ?: ""
-                                            } else {
-                                                request.userId
-                                            }
-                                            val isHelperReviewing = !isCurrentUserTheRequester
-
-                                            if (revieweeId.isNotEmpty()) {
-                                                navController.navigate("review/${request.id}/$revieweeId/$isHelperReviewing")
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Icon(Icons.Default.RateReview, contentDescription = null, modifier = Modifier.size(20.dp))
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Leave Feedback")
-                                    }
-                                }
-                            }
-                        }
-                    }
+        },
+        floatingActionButton = {
+            if (pagerState.currentPage == 0) {
+                FloatingActionButton(
+                    onClick = { navController.navigate("post_request") },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Post a Request"
+                    )
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun ManageRequestDialog(
-    request: HelpRequest,
-    onDismiss: () -> Unit,
-    onAcceptOffer: (Offer) -> Unit,
-    onDelete: () -> Unit,
-    onCancel: () -> Unit,
-    onConfirm: () -> Unit,
-    onNavigateToEdit: (String) -> Unit,
-    homeViewModel: HomeViewModel = hiltViewModel()
-) {
-    LaunchedEffect(request.id) {
-        if (request.status == "open") {
-            homeViewModel.getRequestById(request.id)
-        }
-    }
-    val offers by homeViewModel.offers.collectAsState()
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = when (request.status) {
-                        "open" -> "Manage Your Request"
-                        "in_progress" -> "Manage In-Progress Job"
-                        "pending_completion" -> "Confirm Completion"
-                        else -> "Request Details"
-                    },
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 16.dp).fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-
-                when (request.status) {
-                    "open" -> {
-                        Text("Offers Received", style = MaterialTheme.typography.titleSmall)
-                        Spacer(Modifier.height(8.dp))
-                        if (offers.isEmpty()) {
-                            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                                Text("No offers yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        } else {
-                            LazyColumn(
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.heightIn(max = 200.dp)
-                            ) {
-                                items(offers) { offer ->
-                                    OfferItemRow(offer = offer, onAccept = { onAcceptOffer(offer) })
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(24.dp))
-                        OpenRequestActions(
-                            onDelete = onDelete,
-                            onEdit = { onNavigateToEdit(request.id) }
-                        )
-                    }
-                    "in_progress" -> {
-                        Text(
-                            text = "This will cancel the job with the current helper and reopen the request for new offers. Are you sure?",
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        )
-                        InProgressRequestActions(onCancel = onCancel)
-                    }
-                    "pending_completion" -> {
-                        PendingApprovalActions(onConfirm = onConfirm)
-                    }
-                    else -> {
-                        CompletedRequestDetails(request = request)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun OfferItemRow(offer: Offer, onAccept: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(offer.helperName, fontWeight = FontWeight.SemiBold)
-            Text(formatTimestamp(offer.createdAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Button(onClick = onAccept) {
-            Text("Accept")
-        }
-    }
-}
-
-@Composable
-fun ActivityRequestCard(
-    request: HelpRequest,
-    currentUser: FirebaseUser?,
-    onClick: () -> Unit
-) {
-    OutlinedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            ),
-        shape = RoundedCornerShape(12.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(imageVector = Icons.Default.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = request.title, fontWeight = FontWeight.SemiBold)
-                Text(text = formatTimestamp(request.timestamp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = request.status.replace("_", " ").replaceFirstChar { it.uppercase() },
-                    color = getStatusColor(request.status),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                if (request.userId == currentUser?.uid && request.status == "open" && request.offerCount > 0) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    OfferCountBadge(count = request.offerCount)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun CompletedRequestDetails(request: HelpRequest) {
-    @Composable
-    fun DetailRow(icon: ImageVector, label: String, value: String) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(Modifier.width(16.dp))
-            Column {
-                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(value, style = MaterialTheme.typography.bodyLarge)
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) { page ->
+            when (page) {
+                0 -> MyRequestsContent(
+                    requests = myRequests,
+                    onRequestClick = { managingRequest = it },
+                    onPostRequest = { navController.navigate("post_request") }
+                )
+                1 -> MyResponsesContent(
+                    responses = myResponses,
+                    onResponseClick = { request ->
+                        if (request.status == "in_progress") {
+                            onNavigateToChat(request.id, request.userName)
+                        } else {
+                            navController.navigate("request_detail/${request.id}")
+                        }
+                    }
+                )
+                2 -> CompletedContent(
+                    completedRequests = completedRequests,
+                    currentUser = currentUser,
+                    onRequestClick = { /* Show summary */ },
+                    onLeaveFeedback = { request ->
+                        val isCurrentUserTheRequester = request.userId == currentUser?.uid
+                        val revieweeId = if (isCurrentUserTheRequester)
+                            request.responderId ?: ""
+                        else
+                            request.userId
+                        if (revieweeId.isNotEmpty()) {
+                            navController.navigate("review/${request.id}/$revieweeId/${!isCurrentUserTheRequester}")
+                        }
+                    }
+                )
             }
         }
     }
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text(
-            text = request.title,
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        Text(
-            text = request.description,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
-
-        HorizontalDivider()
-        DetailRow(
-            icon = Icons.Default.Person,
-            label = "Helped By",
-            value = request.responderName ?: "N/A"
-        )
-        DetailRow(
-            icon = Icons.Default.DateRange,
-            label = "Completed On",
-            value = formatTimestamp(request.timestamp)
-        )
-        val compensationText = if (request.compensation.lowercase() == "volunteer") {
-            "Volunteer"
-        } else {
-            "Fee"
-        }
-
-        val compensationIcon = if (request.compensation.lowercase() == "volunteer") {
-            Icons.Default.Favorite
-        } else {
-            Icons.Default.AttachMoney
-        }
-
-        DetailRow(
-            icon = compensationIcon,
-            label = "Compensation",
-            value = compensationText
-        )
-        HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
-    }
 }
 
 @Composable
-fun OpenRequestActions(onDelete: () -> Unit, onEdit: () -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Button(onClick = onEdit, modifier = Modifier.weight(1f)) {
-            Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Edit")
-        }
-        OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error), border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))) {
-            Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Delete")
-        }
-    }
-}
-
-@Composable
-fun InProgressRequestActions(onCancel: () -> Unit) {
-    Button(
-        onClick = onCancel,
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-    ) {
-        Text("Yes, Cancel Job")
-    }
-}
-
-@Composable
-fun OfferCountBadge(count: Int) {
-    Box(
-        modifier = Modifier
-            .size(24.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.error),
-        contentAlignment = Alignment.Center
+private fun TabWithBadge(
+    title: String,
+    count: Int,
+    isSelected: Boolean
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(vertical = 12.dp)
     ) {
         Text(
-            text = count.toString(),
-            color = MaterialTheme.colorScheme.onError,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
+
+        if (count > 0) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (isSelected)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected)
+                        MaterialTheme.colorScheme.onPrimary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
     }
 }
 
 @Composable
-fun PendingApprovalActions(onConfirm: () -> Unit) {
-    Text(
-        text = "The helper has marked this job as complete. Please confirm to close the request.",
-        textAlign = TextAlign.Center
-    )
-    Button(
-        onClick = onConfirm,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(8.dp))
-        Text("Confirm Completion", fontWeight = FontWeight.Bold)
+internal fun MyRequestsContent(
+    requests: List<HelpRequest>,
+    onRequestClick: (HelpRequest) -> Unit,
+    onPostRequest: () -> Unit
+) {
+    if (requests.isEmpty()) {
+        EmptyStateWithAction(
+            icon = Icons.AutoMirrored.Filled.Assignment,
+            title = "No Requests Yet",
+            message = "You haven't posted any requests.\nStart by posting your first help request!",
+            actionText = "Post a Request",
+            onAction = onPostRequest
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(items = requests, key = { it.id }) { request ->
+                ActivityRequestCard(
+                    request = request,
+                    onClick = { onRequestClick(request) }
+                )
+            }
+        }
     }
 }
 
 @Composable
-fun EmptyState(message: String) {
-    Box(
+internal fun MyResponsesContent(
+    responses: List<HelpRequest>,
+    onResponseClick: (HelpRequest) -> Unit
+) {
+    if (responses.isEmpty()) {
+        EmptyStateWithAction(
+            icon = Icons.Default.Handshake,
+            title = "No Responses Yet",
+            message = "You haven't offered help to anyone yet.\nBrowse requests and start helping!",
+            actionText = "Browse Requests",
+            onAction = { /* Navigate to home */ }
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(items = responses, key = { it.id }) { response ->
+                ResponseCard(
+                    request = response,
+                    onClick = { onResponseClick(response) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun CompletedContent(
+    completedRequests: List<HelpRequest>,
+    currentUser: com.google.firebase.auth.FirebaseUser?,
+    onRequestClick: (HelpRequest) -> Unit,
+    onLeaveFeedback: (HelpRequest) -> Unit
+) {
+    if (completedRequests.isEmpty()) {
+        EmptyStateWithoutAction(
+            icon = Icons.Default.CheckCircle,
+            title = "No Completed Requests",
+            message = "Completed requests will appear here.\nKeep helping and building your reputation!"
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(items = completedRequests, key = { it.id }) { request ->
+                Column {
+                    CompletedRequestCard(
+                        request = request,
+                        currentUser = currentUser,
+                        onClick = { onRequestClick(request) }
+                    )
+
+                    if (request.reviewStatus[currentUser?.uid] == "pending") {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { onLeaveFeedback(request) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.RateReview,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Leave Feedback",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun EmptyStateWithAction(
+    icon: ImageVector,
+    title: String,
+    message: String,
+    actionText: String,
+    onAction: () -> Unit
+) {
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(32.dp),
-        contentAlignment = Alignment.Center
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.size(80.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         Text(
             text = message,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodyLarge
+            lineHeight = 20.sp
         )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Button(
+            onClick = onAction,
+            modifier = Modifier
+                .fillMaxWidth(0.7f)
+                .height(48.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            ),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 3.dp
+            )
+        ) {
+            Icon(
+                imageVector = if (actionText.contains("Post"))
+                    Icons.Default.Add
+                else
+                    Icons.Default.Search,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                actionText,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 
-private fun getStatusColor(status: String): Color {
-    return when (status.lowercase()) {
-        "completed" -> Color(0xFF4CAF50)
-        "pending" -> Color(0xFFFFC107)
-        "pending_completion" -> Color(0xFFFFA500)
-        "in_progress" -> Color(0xFF4DABF7)
-        "open" -> Color.Gray
-        else -> Color.LightGray
-    }
-}
-
-private fun formatTimestamp(timestamp: Timestamp?): String {
-    if (timestamp == null) return "Just now"
-    val diff = Timestamp.now().seconds - timestamp.seconds
-    val days = TimeUnit.SECONDS.toDays(diff)
-    if (days > 0) return "Posted $days ${if (days == 1L) "day" else "days"} ago"
-    val hours = TimeUnit.SECONDS.toHours(diff)
-    if (hours > 0) return "Posted $hours ${if (hours == 1L) "hour" else "hours"} ago"
-    val minutes = TimeUnit.SECONDS.toMinutes(diff)
-    if (minutes > 0) return "Posted $minutes ${if (minutes == 1L) "minute" else "minutes"} ago"
-    return "Posted just now"
-}
-
-@Preview
 @Composable
-fun MyActivityScreenPreview() {
-    AidLinkTheme {
-        MyActivityScreen(
-            myActivityViewModel = viewModel(),
-            onNavigateToChat = { _, _ -> },
-            navController = rememberNavController()
+internal fun EmptyStateWithoutAction(
+    icon: ImageVector,
+    title: String,
+    message: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.size(80.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            lineHeight = 20.sp
         )
     }
 }

@@ -1,3 +1,5 @@
+///Users/lakshan/AndroidStudioProjects/AidLink/app/src/main/java/com/aidlink/model/HelpRequest.kt
+
 package com.aidlink.model
 
 import com.google.firebase.Timestamp
@@ -11,6 +13,7 @@ data class HelpRequest(
     val id: String = "",
     val userId: String = "",
     val userName: String = "",
+    val userPhotoUrl: String = "",
     val title: String = "",
     val description: String = "",
     val category: String = "",
@@ -30,4 +33,5 @@ data class HelpRequest(
     val timestamp: Timestamp? = null,
     val responderId: String? = null,
     val responderName: String? = null,
+    val responderPhotoUrl: String? = null
 )

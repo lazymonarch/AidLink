@@ -17,6 +17,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -252,7 +253,10 @@ private fun Page1Content(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
                     shape = CircleShape
                 )
-                .clickable { onImageClick() }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onImageClick() }
                 .padding(2.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -335,10 +339,13 @@ private fun Page2Content(
             .verticalScroll(rememberScrollState())
     ) {
         LinearProgressIndicator(
-            progress = 0.66f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp),
+        progress = { 0.66f },
+        modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp),
+        color = ProgressIndicatorDefaults.linearColor,
+        trackColor = ProgressIndicatorDefaults.linearTrackColor,
+        strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -464,12 +471,13 @@ private fun Page3Content(
             .padding(horizontal = 24.dp)
     ) {
         LinearProgressIndicator(
-            progress = 1.0f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp),
-            color = Color(0xFFFF6B35),
-            trackColor = Color(0xFFFFE5DD)
+        progress = { 1.0f },
+        modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp),
+        color = Color(0xFFFF6B35),
+        trackColor = Color(0xFFFFE5DD),
+        strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -493,7 +501,10 @@ private fun Page3Content(
             onValueChange = { },
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { showSearchBottomSheet = true },
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { showSearchBottomSheet = true },
             enabled = false,
             placeholder = {
                 Text(
@@ -728,7 +739,10 @@ private fun Page3Content(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
                                     onAreaChange(result.first)
                                     if (onLocationSelected != null) {
                                         onLocationSelected(0.0, 0.0) // Dummy coordinates

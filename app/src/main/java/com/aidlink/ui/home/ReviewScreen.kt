@@ -240,7 +240,7 @@ fun FeedbackButton(
             .height(100.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null,
+                indication = null, // Use rememberRipple()
                 onClick = onClick
             ),
         shape = RoundedCornerShape(12.dp),
@@ -278,7 +278,7 @@ fun BadgeSelectionChip(
         border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
         modifier = Modifier.clickable(
             interactionSource = remember { MutableInteractionSource() },
-            indication = null,
+            indication = null, // Use rememberRipple()
             onClick = { onToggleSelection(badgeInfo) }
         )
     ) {
