@@ -1,5 +1,3 @@
-///Users/lakshan/AndroidStudioProjects/AidLink/app/src/main/java/com/aidlink/ui/AppNavigation.kt
-
 package com.aidlink.ui
 
 import androidx.compose.foundation.layout.padding
@@ -19,6 +17,7 @@ import androidx.navigation.navArgument
 import com.aidlink.ui.auth.LoginScreen
 import com.aidlink.ui.auth.OtpVerificationScreen
 import com.aidlink.ui.auth.ProfileSetupScreen
+import com.aidlink.ui.chat.ChatScreen
 import com.aidlink.ui.home.*
 import com.aidlink.ui.profile.EditProfileScreen
 import com.aidlink.ui.settings.SettingsScreen
@@ -169,12 +168,10 @@ fun AppNavigation() {
             }
 
             composable("chats") {
-                val chatViewModel: ChatViewModel = hiltViewModel()
+                val chatsViewModel: ChatsViewModel = hiltViewModel()
                 ChatsListScreen(
-                    chatViewModel = chatViewModel,
-                    onChatClicked = { chatId, userName ->
-                        navController.navigate("chat/$chatId/$userName")
-                    }
+                    navController = navController,
+                    viewModel = chatsViewModel
                 )
             }
 
@@ -241,15 +238,12 @@ fun AppNavigation() {
                     navArgument("userName") { type = NavType.StringType }
                 )
             ) { backStackEntry ->
-                val chatViewModel: ChatViewModel = hiltViewModel()
+                val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
                 val userName = backStackEntry.arguments?.getString("userName") ?: "Chat"
                 ChatScreen(
-                    otherUserName = userName,
-                    chatViewModel = chatViewModel,
-                    onBackClicked = {
-                        chatViewModel.clearChatScreenState()
-                        navController.popBackStack()
-                    }
+                    chatId = chatId,
+                    userName = userName,
+                    navController = navController
                 )
             }
 

@@ -92,6 +92,7 @@ export const handleRequestActions = onDocumentCreated(
                 participants: [requesterId, helperId],
             });
             const chatRef = db.collection("chats").doc(requestId);
+            const systemMessageText = `${requesterData.name} accepted the offer! You can now chat.`;
             transaction.set(chatRef, {
                 participants: [requesterId, helperId],
                 participantInfo: {
@@ -99,14 +100,16 @@ export const handleRequestActions = onDocumentCreated(
                     [helperId]: { name: responderData.name, photoUrl: responderData.photoUrl || "" }
                 },
                 createdAt: FieldValue.serverTimestamp(),
-                lastMessage: `${requesterData.name} accepted the offer! You can now chat.`,
+                lastMessage: systemMessageText,
                 lastMessageTimestamp: FieldValue.serverTimestamp(),
             });
             const initialMessageRef = chatRef.collection("messages").doc();
             transaction.set(initialMessageRef, {
                 senderId: "system",
-                text: `${requesterData.name} accepted the offer! You can now chat.`,
+                text: systemMessageText,
                 timestamp: FieldValue.serverTimestamp(),
+                type: "SYSTEM",
+                systemType: "offer_accepted",
             });
         }
         else if (actionType === "cancel_request") {
@@ -133,6 +136,8 @@ export const handleRequestActions = onDocumentCreated(
                     senderId: "system",
                     text: cancelMessage,
                     timestamp: FieldValue.serverTimestamp(),
+                    type: "SYSTEM",
+                    systemType: "request_cancelled",
                 });
             }
         } 
@@ -146,6 +151,8 @@ export const handleRequestActions = onDocumentCreated(
                 senderId: "system",
                 text: `${requestData.responderName} (the helper) has marked this job as complete. Please confirm to finalize the request.`,
                 timestamp: FieldValue.serverTimestamp(),
+                type: "SYSTEM",
+                systemType: "job_completed",
             });
             transaction.update(requestRef, { status: "pending_completion" });
         }
@@ -162,6 +169,8 @@ export const handleRequestActions = onDocumentCreated(
                 senderId: "system",
                 text: "Job confirmed and completed! This chat is now archived.",
                 timestamp: FieldValue.serverTimestamp(),
+                type: "SYSTEM",
+                systemType: "job_confirmed",
             });
             transaction.update(requestRef, { status: "completed" });
         }

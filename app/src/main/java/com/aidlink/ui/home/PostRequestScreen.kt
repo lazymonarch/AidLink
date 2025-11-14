@@ -26,10 +26,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.aidlink.ui.theme.AidLinkTheme
 import com.aidlink.viewmodel.HomeViewModel
 import com.aidlink.viewmodel.PostRequestUiState
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -446,14 +447,7 @@ private fun PostCategoryDropdown(
                     }
                 },
                 trailingIcon = {
-                    Icon(
-                        imageVector = if (isExpanded)
-                            Icons.Default.KeyboardArrowUp
-                        else
-                            Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded)
                 },
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(

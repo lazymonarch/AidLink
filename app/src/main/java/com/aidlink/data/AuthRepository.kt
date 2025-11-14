@@ -1,5 +1,3 @@
-///Users/lakshan/AndroidStudioProjects/AidLink/app/src/main/java/com/aidlink/data/AuthRepository.kt
-
 package com.aidlink.data
 
 import android.app.Activity
@@ -26,7 +24,6 @@ import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 
@@ -46,6 +43,7 @@ class AuthRepository(
     }
 
     fun getCurrentUser() = auth.currentUser
+    fun getCurrentUserId(): String? = auth.currentUser?.uid
 
     suspend fun makeOffer(requestId: String): Boolean {
         return enqueueRequestAction(requestId, "make_offer")
@@ -267,10 +265,6 @@ class AuthRepository(
             .whereEqualTo("status", "open")
             .whereIn("geohashCoarse", geohashQueries)
 
-        // --- START OF FIX ---
-        // We have removed the inefficient coordinateQuery and all merging logic.
-        // We now only rely on the geohashQuery.
-
         val geohashListener = geohashQuery.addSnapshotListener { geohashSnapshots, error ->
             if (error != null) {
                 Log.e(tag, "Error listening to geohash requests", error)
@@ -278,7 +272,6 @@ class AuthRepository(
                 return@addSnapshotListener
             }
 
-            // Directly process the geohash results
             val allFoundRequests = mutableMapOf<String, HelpRequest>()
             geohashSnapshots?.forEach { doc ->
                 val request = doc.toObject(HelpRequest::class.java).copy(id = doc.id)
@@ -290,7 +283,6 @@ class AuthRepository(
             val requestsInBox = allFoundRequests.values.filter { it.userId != currentUserId }
             Log.d(tag, "getNearbyHelpRequests: ${requestsInBox.size} requests after filtering current user")
 
-            // Run the final, precise distance filter
             val requestsInRadius = requestsInBox.filter { request ->
                 val requestLocation = Geometries.point(request.latitude, request.longitude)
                 val centerLocation = Geometries.point(center.latitude, center.longitude)
@@ -301,7 +293,6 @@ class AuthRepository(
             Log.d(tag, "getNearbyHelpRequests: Final result: ${requestsInRadius.size} requests within ${radiusInKm}km")
             trySend(requestsInRadius)
         }
-        // --- END OF FIX ---
 
         awaitClose { geohashListener.remove() }
     }
@@ -443,7 +434,8 @@ class AuthRepository(
             val messageData = mapOf(
                 "senderId" to senderId,
                 "text" to text,
-                "timestamp" to FieldValue.serverTimestamp()
+                "timestamp" to FieldValue.serverTimestamp(),
+                "isSent" to true
             )
 
             db.runBatch { batch ->
@@ -460,6 +452,58 @@ class AuthRepository(
             Log.e(tag, "Error sending message to chatId: $chatId. Check Firestore rules.", e)
             false
         }
+    }
+
+    fun observeTypingStatus(chatId: String): Flow<Boolean> = callbackFlow {
+        val otherUserId = "" // This is a placeholder and needs to be implemented
+        val typingRef = db.collection("chats").document(chatId).collection("typing").document(otherUserId)
+        val listener = typingRef.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            trySend(snapshot?.exists() == true && snapshot.getBoolean("isTyping") == true)
+        }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun setTypingStatus(chatId: String, isTyping: Boolean) {
+        val uid = getCurrentUser()?.uid ?: return
+        try {
+            db.collection("chats").document(chatId).collection("typing").document(uid).set(mapOf("isTyping" to isTyping)).await()
+        } catch (e: Exception) {
+            Log.e(tag, "Error setting typing status", e)
+        }
+    }
+
+    suspend fun markChatAsRead(chatId: String) {
+        // Not implemented
+    }
+
+    fun resendMessage(chatId: String, messageId: String) {
+        // Not implemented
+    }
+
+    suspend fun deleteMessage(chatId: String, messageId: String): Boolean {
+        return try {
+            db.collection("chats").document(chatId).collection("messages").document(messageId).delete().await()
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error deleting message", e)
+            false
+        }
+    }
+
+    fun editMessage(chatId: String, messageId: String, newText: String) {
+        // Not implemented
+    }
+
+    fun sendImageMessage(chatId: String, imageUri: String) {
+        // Not implemented
+    }
+
+    fun sendLocationMessage(chatId: String, lat: Double, lng: Double) {
+        // Not implemented
     }
 
     suspend fun deleteRequest(requestId: String): Boolean {
