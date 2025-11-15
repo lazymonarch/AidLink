@@ -1,3 +1,4 @@
+
 package com.aidlink.data
 
 import android.app.Activity
@@ -18,12 +19,12 @@ import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
-import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 
@@ -81,6 +82,15 @@ class AuthRepository(
     suspend fun confirmCompletion(requestId: String): Boolean {
         return enqueueRequestAction(requestId, "confirm_complete")
     }
+
+    suspend fun markJobAsNotComplete(requestId: String): Boolean {
+        return enqueueRequestAction(requestId, "mark_not_complete")
+    }
+
+    suspend fun rejectJobCompletion(requestId: String): Boolean {
+        return enqueueRequestAction(requestId, "reject_completion")
+    }
+
 
     fun sendVerificationCode(
         phoneNumber: String,
@@ -332,8 +342,7 @@ class AuthRepository(
     }
 
     fun getChats(): Flow<List<Chat>> = callbackFlow {
-        val userId = getCurrentUser()?.uid
-        if (userId == null) {
+        val userId = getCurrentUser()?.uid ?: run {
             trySend(emptyList())
             close()
             return@callbackFlow
@@ -343,48 +352,43 @@ class AuthRepository(
             .whereArrayContains("participants", userId)
             .orderBy("lastMessageTimestamp", Query.Direction.DESCENDING)
 
-        val requestsQuery = db.collection("requests")
-            .whereArrayContains("participants", userId)
-
-        var requestsListener: ListenerRegistration? = null
-        var chats: List<Chat> = emptyList()
-        var requests: List<HelpRequest> = emptyList()
-
-        fun updateChats() {
-            val requestStatusMap = requests.associateBy({ it.id }, { it.status })
-            val chatsWithStatus = chats.map { chat ->
-                chat.copy(status = requestStatusMap[chat.id] ?: "")
-            }
-            val visibleChats = chatsWithStatus.filter { !it.deletedBy.contains(userId) }
-            trySend(visibleChats)
-        }
-
         val chatsListener = chatsQuery.addSnapshotListener { chatsSnapshot, chatsError ->
             if (chatsError != null) {
                 close(chatsError)
                 return@addSnapshotListener
             }
-            chats = chatsSnapshot?.map { it.toObject(Chat::class.java).copy(id = it.id) } ?: emptyList()
+            
+            val chats = chatsSnapshot?.mapNotNull { doc ->
+                try {
+                    val chat = doc.toObject(Chat::class.java).copy(id = doc.id)
+                    
+                    val otherUserId = chat.participants.firstOrNull { it != userId } ?: return@mapNotNull null
+                    val otherUserInfo = chat.participantInfo[otherUserId]
+                    
+                    @Suppress("UNCHECKED_CAST")
+                    val unreadCountMap = doc.get("unreadCount") as? Map<String, Long>
+                    val myUnreadCount = unreadCountMap?.get(userId)?.toInt() ?: 0
+                    
+                    val requestStatus = doc.getString("requestStatus") ?: chat.requestStatus
 
-            if (requestsListener == null) {
-                requestsListener = requestsQuery.addSnapshotListener { requestsSnapshot, requestsError ->
-                    if (requestsError != null) {
-                        close(requestsError)
-                        return@addSnapshotListener
-                    }
-                    requests = requestsSnapshot?.map { it.toObject(HelpRequest::class.java).copy(id = it.id) } ?: emptyList()
-                    updateChats()
+                    chat.copy(
+                        otherUserName = otherUserInfo?.get("name") as? String ?: "Unknown User",
+                        otherUserPhotoUrl = otherUserInfo?.get("photoUrl") as? String ?: "",
+                        unreadCount = myUnreadCount,
+                        requestStatus = requestStatus
+                    )
+                } catch (e: Exception) {
+                    Log.e(tag, "Error parsing chat: ${doc.id}", e)
+                    null
                 }
-            } else {
-                updateChats()
-            }
+            } ?: emptyList()
+            
+            val visibleChats = chats.filter { !it.deletedBy.contains(userId) }
+            
+            trySend(visibleChats)
         }
 
-        awaitClose {
-            Log.d(tag, "Removing chats and requests listeners.")
-            chatsListener.remove()
-            requestsListener?.remove()
-        }
+        awaitClose { chatsListener.remove() }
     }
 
 
@@ -404,6 +408,58 @@ class AuthRepository(
         awaitClose { listener.remove() }
     }
 
+    fun getChatStream(chatId: String): Flow<Chat?> = callbackFlow {
+        val userId = getCurrentUserId() ?: run {
+            trySend(null)
+            close()
+            return@callbackFlow
+        }
+
+        val chatRef = db.collection("chats").document(chatId)
+        val listener = chatRef.addSnapshotListener { doc, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            if (doc == null || !doc.exists()) {
+                trySend(null)
+                return@addSnapshotListener
+            }
+
+            try {
+                val chat = doc.toObject(Chat::class.java)?.copy(id = doc.id)
+                if (chat == null) {
+                    trySend(null)
+                    return@addSnapshotListener
+                }
+
+                val otherUserId = chat.participants.firstOrNull { it != userId }
+                val otherUserInfo = if (otherUserId != null) {
+                    chat.participantInfo[otherUserId]
+                } else null
+                
+                @Suppress("UNCHECKED_CAST")
+                val unreadCountMap = doc.get("unreadCount") as? Map<String, Long>
+                val myUnreadCount = unreadCountMap?.get(userId)?.toInt() ?: 0
+
+                val requestStatus = doc.getString("requestStatus") ?: "in_progress"
+
+                val enrichedChat = chat.copy(
+                    otherUserName = otherUserInfo?.get("name") as? String ?: "Unknown User",
+                    otherUserPhotoUrl = otherUserInfo?.get("photoUrl") as? String ?: "",
+                    unreadCount = myUnreadCount,
+                    requestStatus = requestStatus
+                )
+                trySend(enrichedChat)
+
+            } catch (e: Exception) {
+                Log.e(tag, "Error parsing chat: ${doc.id}", e)
+                close(e)
+            }
+        }
+        awaitClose { listener.remove() }
+    }
+
     suspend fun hideChatForCurrentUser(chatId: String): Boolean {
         val uid = getCurrentUser()?.uid ?: return false
         Log.d(tag, "Attempting to hide chat $chatId for user $uid")
@@ -415,6 +471,24 @@ class AuthRepository(
             true
         } catch (e: Exception) {
             Log.e(tag, "Error hiding chat: $chatId", e)
+            false
+        }
+    }
+
+    suspend fun hideChatsForCurrentUser(chatIds: List<String>): Boolean {
+        val uid = getCurrentUser()?.uid ?: return false
+        Log.d(tag, "Attempting to hide ${chatIds.size} chats for user $uid")
+        return try {
+            val batch = db.batch()
+            chatIds.forEach { chatId ->
+                val chatRef = db.collection("chats").document(chatId)
+                batch.update(chatRef, "deletedBy", FieldValue.arrayUnion(uid))
+            }
+            batch.commit().await()
+            Log.i(tag, "Successfully hid ${chatIds.size} chats for user $uid")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error hiding multiple chats", e)
             false
         }
     }
@@ -454,34 +528,26 @@ class AuthRepository(
         }
     }
 
-    fun observeTypingStatus(chatId: String): Flow<Boolean> = callbackFlow {
-        val otherUserId = "" // This is a placeholder and needs to be implemented
-        val typingRef = db.collection("chats").document(chatId).collection("typing").document(otherUserId)
-        val listener = typingRef.addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                close(error)
-                return@addSnapshotListener
-            }
-            trySend(snapshot?.exists() == true && snapshot.getBoolean("isTyping") == true)
-        }
-        awaitClose { listener.remove() }
+    fun observeTypingStatus(chatId: String, otherUserId: String): Flow<Boolean> = flow {
+        // Temporarily disabled to prevent crashes
+        emit(false)
     }
 
     suspend fun setTypingStatus(chatId: String, isTyping: Boolean) {
-        val uid = getCurrentUser()?.uid ?: return
-        try {
-            db.collection("chats").document(chatId).collection("typing").document(uid).set(mapOf("isTyping" to isTyping)).await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error setting typing status", e)
-        }
+        // Temporarily disabled
+        return
     }
 
     suspend fun markChatAsRead(chatId: String) {
-        // Not implemented
+        val userId = getCurrentUser()?.uid ?: return
+        try {
+            db.collection("chats").document(chatId).update("unreadCount.$userId", 0).await()
+        } catch (e: Exception) {
+            Log.e(tag, "Error marking chat as read", e)
+        }
     }
 
     fun resendMessage(chatId: String, messageId: String) {
-        // Not implemented
     }
 
     suspend fun deleteMessage(chatId: String, messageId: String): Boolean {
@@ -495,15 +561,12 @@ class AuthRepository(
     }
 
     fun editMessage(chatId: String, messageId: String, newText: String) {
-        // Not implemented
     }
 
     fun sendImageMessage(chatId: String, imageUri: String) {
-        // Not implemented
     }
 
     fun sendLocationMessage(chatId: String, lat: Double, lng: Double) {
-        // Not implemented
     }
 
     suspend fun deleteRequest(requestId: String): Boolean {
@@ -528,7 +591,7 @@ class AuthRepository(
         Log.d(tag, "Attempting to delete user profile document for user: $uid to trigger backend cleanup.")
         return try {
             db.collection("users").document(uid).delete().await()
-            Log.i(tag, "Successfully deleted user profile document for $uid. Backend cleanup will now proceed.")
+            Log.i(tag, "Successfully deleted user profile document for $uid. Backend will now proceed.")
             true
         } catch (e: Exception) {
             Log.e(tag, "Error deleting user profile document for user: $uid", e)
@@ -555,7 +618,7 @@ class AuthRepository(
         }
     }
 
-    private suspend fun enqueueRequestAction(
+    suspend fun enqueueRequestAction(
         requestId: String,
         actionType: String,
         extraData: Map<String, Any> = emptyMap()

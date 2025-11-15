@@ -3,73 +3,176 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ============================================
+    // USER PROFILES
+    // ============================================
     match /users/{userId} {
-      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null;
-      match /reviews/{reviewId} {
-        // FIX: Secure review creation. A user can read reviews on a profile.
-        // A review can only be created if the reviewer is the logged-in user
-        // and the review is for the correct user profile (the reviewee).
-        allow read: if request.auth != null;
-        allow create: if request.auth != null &&
-                        request.resource.data.reviewerId == request.auth.uid &&
-                        request.resource.data.revieweeId == userId;
-        allow update, delete: if false;
-      }
+      // Users can read any profile (for displaying helper info, etc.)
+      allow read: if request.auth != null;
+      
+      // Users can only create/update/delete their own profile
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    // ============================================
+    // REVIEWS (Consolidated)
+    // ============================================
     match /reviews/{reviewId} {
+      // Anyone authenticated can read reviews
       allow read: if request.auth != null;
+      
+      // Only the reviewer can create their review
+      // Ensure they can't review themselves
+      // Ensure the review doesn't already exist (one review per request per user)
       allow create: if request.auth != null &&
-                      // Ensure the reviewer is who they say they are
                       request.resource.data.reviewerId == request.auth.uid &&
-                      // Prevent duplicate reviews (Note: rule checks for document existence, not business logic)
-                      !exists(/databases/$(database)/documents/reviews/$(reviewId));
+                      request.resource.data.reviewerId != request.resource.data.revieweeId;
+      
+      // Reviews are immutable once created
       allow update, delete: if false;
     }
 
+    // ============================================
+    // HELP REQUESTS
+    // ============================================
     match /requests/{requestId} {
+      // Anyone authenticated can read requests (to browse help requests)
       allow read: if request.auth != null;
-      // FIX: Secure request creation. The userId in the new request document
-      // must match the UID of the user creating it.
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Users can only create requests for themselves
+      allow create: if request.auth != null && 
+                      request.resource.data.userId == request.auth.uid;
+      
+      // Only the requester or accepted helper can update
+      // (e.g., changing status, updating details)
       allow update: if request.auth != null &&
-                     (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.responderId);
-      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+                     (request.auth.uid == resource.data.userId || 
+                      request.auth.uid == resource.data.responderId);
+      
+      // Only the requester can delete their request
+      allow delete: if request.auth != null && 
+                      request.auth.uid == resource.data.userId;
 
+      // ============================================
+      // OFFERS (Subcollection)
+      // ============================================
       match /offers/{offerId} {
+        // Anyone authenticated can read offers (requester reviews them)
         allow read: if request.auth != null;
+        
+        // Users can create offers, but NOT on their own requests
+        // The offerId should match the helper's UID for consistency
         allow create: if request.auth != null &&
-                       request.auth.uid != get(/databases/$(database)/documents/requests/$(requestId)).data.userId;
-        allow delete: if request.auth != null && request.auth.uid == resource.data.helperId;
+                       request.auth.uid != get(/databases/$(database)/documents/requests/$(requestId)).data.userId &&
+                       request.auth.uid == offerId;
+        
+        // Only the helper who created the offer can delete it
+        allow delete: if request.auth != null && 
+                       request.auth.uid == resource.data.helperId;
+        
+        // Offers should not be updated (only created or deleted)
         allow update: if false;
       }
 
+      // ============================================
+      // ACTIONS (Subcollection)
+      // ============================================
       match /actions/{actionId} {
-        allow create: if request.auth != null &&
-                       (request.auth.uid == get(/databases/$(database)/documents/requests/$(requestId)).data.userId ||
-                        request.auth.uid == get(/databases/$(database)/documents/requests/$(requestId)).data.responderId ||
-                        request.resource.data.type == 'make_offer');
+        // Create actions based on type and user role
+        allow create: if request.auth != null && isValidAction();
+        
+        // Actions are write-only from the client side
+        // Backend functions will update them with 'processed' status
         allow read, update, delete: if false;
+        
+        // Helper function to validate action creation
+        function isValidAction() {
+          let requestData = get(/databases/$(database)/documents/requests/$(requestId)).data;
+          let actionType = request.resource.data.type;
+          let createdBy = request.resource.data.createdBy;
+          
+          // Make offer: Anyone except the requester
+          return (actionType == 'make_offer' && createdBy != requestData.userId) ||
+          
+          // Accept offer: Only the requester
+                 (actionType == 'accept_offer' && createdBy == requestData.userId) ||
+          
+          // Cancel request: Only the requester (when in_progress)
+                 (actionType == 'cancel_request' && createdBy == requestData.userId) ||
+          
+          // Mark complete: Only the accepted helper
+                 (actionType == 'mark_complete' && createdBy == requestData.responderId) ||
+          
+          // Mark not complete: Only the accepted helper
+                 (actionType == 'mark_not_complete' && createdBy == requestData.responderId) ||
+          
+          // Confirm complete: Only the requester
+                 (actionType == 'confirm_complete' && createdBy == requestData.userId) ||
+          
+          // Reject completion: Only the requester
+                 (actionType == 'reject_completion' && createdBy == requestData.userId);
+        }
       }
     }
 
+    // ============================================
+    // CHATS
+    // ============================================
     match /chats/{chatId} {
-      allow read: if request.auth != null && request.auth.uid in resource.data.participants;
-      // FIX: Secure chat creation. The user creating the chat document
-      // must be one of the participants listed in the document.
-      allow create: if request.auth != null && request.auth.uid in request.resource.data.participants;
+      // LIST: Users can list chats where they're a participant
+      // This allows the ChatsListScreen to query "where participants array-contains userId"
+      allow list: if request.auth != null && 
+                    request.auth.uid in resource.data.participants;
+      
+      // GET: Users can read individual chats where they're a participant
+      allow get: if request.auth != null && 
+                   request.auth.uid in resource.data.participants;
+      
+      // CREATE: Users can create chats where they're a participant
+      allow create: if request.auth != null && 
+                      request.auth.uid in request.resource.data.participants;
+      
+      // UPDATE: This is the critical rule for backend sync!
+      // Allow updates if:
+      // 1. User is a participant (for soft delete, typing status, etc.) OR
+      // 2. Only specific fields are being updated (for backend sync)
+      allow update: if request.auth != null && 
+                     (request.auth.uid in resource.data.participants ||
+                      onlyUpdatingAllowedFields());
+      
+      // DELETE: Only allow deletion when request is completed
       allow delete: if request.auth != null &&
                      get(/databases/$(database)/documents/requests/$(chatId)).data.status == 'completed';
-
-      allow update: if request.auth != null && request.auth.uid in resource.data.participants;
       
+      // Helper function to check if only backend-sync fields are being updated
+      function onlyUpdatingAllowedFields() {
+        let allowedFields = ['requestStatus', 'lastMessage', 'lastMessageTimestamp'];
+        let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+        return changedKeys.hasOnly(allowedFields);
+      }
+
+      // ============================================
+      // MESSAGES (Subcollection)
+      // ============================================
       match /messages/{messageId} {
-        allow read, create: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        // Users can read messages in chats they're part of
+        allow read: if request.auth != null && 
+                      request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        
+        // Users can create messages in chats they're part of
+        allow create: if request.auth != null && 
+                       request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        
+        // Messages are immutable once sent
         allow update, delete: if false;
       }
     }
 
+    // ============================================
+    // DEFAULT DENY (Security First!)
+    // ============================================
     match /{document=**} {
       allow read, write: if false;
     }

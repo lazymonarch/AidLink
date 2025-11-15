@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.home
 
 import androidx.compose.animation.*
@@ -37,17 +38,12 @@ import com.aidlink.viewmodel.ChatsViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * ChatsListScreen - Material 3 v1.3.0 Implementation
- * Features: Pull-to-refresh, search, selection mode, empty states
- */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChatsListScreen(
     navController: NavController,
     viewModel: ChatsViewModel = hiltViewModel()
 ) {
-    // State collection
     val chats by viewModel.chats.collectAsState()
     val selectedChats by viewModel.selectedChats.collectAsState()
     val selectionMode by viewModel.selectionMode.collectAsState()
@@ -56,7 +52,6 @@ fun ChatsListScreen(
     val showSearch by viewModel.showSearch.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
-    // Show error snackbar
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -71,7 +66,6 @@ fun ChatsListScreen(
     Scaffold(
         topBar = {
             if (selectionMode) {
-                // Selection mode top bar
                 TopAppBar(
                     title = {
                         Text(
@@ -105,25 +99,23 @@ fun ChatsListScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color(0xFFFFE5DD) // Light orange for selection
+                        containerColor = Color(0xFFFFE5DD)
                     )
                 )
             } else {
-                // Normal top bar
                 ChatsTopBar(
                     showSearch = showSearch,
                     searchQuery = searchQuery,
                     onSearchToggle = { viewModel.toggleSearch() },
                     onSearchQueryChange = { viewModel.updateSearchQuery(it) },
                     onSearchClear = { viewModel.clearSearch() },
-                    onNewChatClick = { /* Navigate to new chat */ }
+                    onEnterSelectionMode = { viewModel.enterSelectionMode() }
                 )
             }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            // Delete FAB in selection mode
             if (selectionMode && selectedChats.isNotEmpty()) {
                 ExtendedFloatingActionButton(
                     onClick = { viewModel.deleteSelectedChats() },
@@ -145,11 +137,9 @@ fun ChatsListScreen(
             }
         }
     ) { paddingValues ->
-        // Empty state
         if (chats.isEmpty() && !isRefreshing) {
             ChatsEmptyState(modifier = Modifier.padding(paddingValues))
         } else {
-            // Chat list with pull-to-refresh (Material 3 v1.3.0)
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = { viewModel.refreshChats() },
@@ -179,7 +169,6 @@ fun ChatsListScreen(
                             onLongClick = {
                                 viewModel.enterSelectionMode(chat.id)
                             },
-                            // Use animateItem() instead of animateItemPlacement()
                             modifier = Modifier.animateItem()
                         )
                     }
@@ -189,9 +178,6 @@ fun ChatsListScreen(
     }
 }
 
-/**
- * Top bar with search functionality
- */
 @Composable
 private fun ChatsTopBar(
     showSearch: Boolean,
@@ -199,14 +185,13 @@ private fun ChatsTopBar(
     onSearchToggle: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onSearchClear: () -> Unit,
-    onNewChatClick: () -> Unit
+    onEnterSelectionMode: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
     ) {
-        // Title row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -222,7 +207,6 @@ private fun ChatsTopBar(
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                // Search button
                 IconButton(onClick = onSearchToggle) {
                     Icon(
                         imageVector = Icons.Default.Search,
@@ -231,18 +215,16 @@ private fun ChatsTopBar(
                     )
                 }
 
-                // New chat button
-                IconButton(onClick = onNewChatClick) {
+                IconButton(onClick = onEnterSelectionMode) {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "Start new chat",
+                        contentDescription = "Select chats",
                         tint = Color(0xFFFF6B35)
                     )
                 }
             }
         }
 
-        // Search bar
         AnimatedVisibility(
             visible = showSearch,
             enter = expandVertically() + fadeIn(),
@@ -292,9 +274,6 @@ private fun ChatsTopBar(
     }
 }
 
-/**
- * Empty state for chats list
- */
 @Composable
 private fun ChatsEmptyState(modifier: Modifier = Modifier) {
     Column(
@@ -332,9 +311,6 @@ private fun ChatsEmptyState(modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Individual chat list item with selection support
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChatListItem(
@@ -363,7 +339,6 @@ private fun ChatListItem(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Selection checkbox
             AnimatedVisibility(
                 visible = selectionMode,
                 enter = scaleIn() + fadeIn(),
@@ -381,22 +356,172 @@ private fun ChatListItem(
                 )
             }
 
-            // User avatar with badges
-            UserAvatar(
-                photoUrl = chat.otherUserPhotoUrl,
-                unreadCount = chat.unreadCount,
-                isOnline = chat.isOnline
-            )
+            Box {
+                AsyncImage(
+                    model = chat.otherUserPhotoUrl,
+                    contentDescription = "User avatar",
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentScale = ContentScale.Crop
+                )
+
+                if (chat.unreadCount > 0) {
+                    Badge(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 4.dp, y = (-4).dp),
+                        containerColor = Color(0xFFFF6B35),
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ) {
+                        Text(
+                            text = if (chat.unreadCount > 9) "9+" else "${chat.unreadCount}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                if (chat.requestStatus.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .align(Alignment.Center)
+                            .border(
+                                width = 3.dp,
+                                color = when (chat.requestStatus) {
+                                    "in_progress" -> Color(0xFF43A047)
+                                    "pending_completion" -> Color(0xFFFB8C00)
+                                    "completed" -> Color(0xFFE53935)
+                                    else -> Color.Transparent
+                                },
+                                shape = CircleShape
+                            )
+                    )
+                }
+                
+                if (chat.isOnline && chat.requestStatus.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .align(Alignment.BottomEnd)
+                            .background(Color(0xFF43A047), CircleShape)
+                            .border(
+                                2.dp,
+                                MaterialTheme.colorScheme.surface,
+                                CircleShape
+                            )
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Chat info
-            ChatInfo(
-                chat = chat,
-                modifier = Modifier.weight(1f)
-            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        Text(
+                            text = chat.otherUserName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = if (chat.unreadCount > 0)
+                                FontWeight.Bold
+                            else
+                                FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        
+                        if (chat.requestStatus.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(
+                                        color = when (chat.requestStatus) {
+                                            "in_progress" -> Color(0xFF43A047)
+                                            "pending_completion" -> Color(0xFFFB8C00)
+                                            "completed" -> Color(0xFFE53935)
+                                            else -> Color.Transparent
+                                        },
+                                        shape = CircleShape
+                                    )
+                            )
+                        }
+                    }
 
-            // Pinned indicator
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = formatChatTimestamp(chat.lastMessageTimestamp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (chat.unreadCount > 0)
+                            Color(0xFFFF6B35)
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (chat.unreadCount > 0)
+                            FontWeight.Bold
+                        else
+                            FontWeight.Normal
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                if (chat.requestStatus == "pending_completion") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.HourglassEmpty,
+                            contentDescription = null,
+                            tint = Color(0xFFFB8C00),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Awaiting completion confirmation",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFFB8C00),
+                            fontWeight = FontWeight.Medium,
+                            fontStyle = FontStyle.Italic
+                        )
+                    }
+                } else if (chat.requestStatus == "completed") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF43A047),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Job completed",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF43A047),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                } else {
+                    if (chat.isTyping) {
+                        TypingIndicator()
+                    } else {
+                        MessagePreview(chat = chat)
+                    }
+                }
+            }
+
             if (chat.isPinned) {
                 Icon(
                     imageVector = Icons.Default.PushPin,
@@ -410,7 +535,6 @@ private fun ChatListItem(
         }
     }
 
-    // Divider
     HorizontalDivider(
         modifier = Modifier.padding(start = 84.dp),
         thickness = 1.dp,
@@ -418,120 +542,7 @@ private fun ChatListItem(
     )
 }
 
-/**
- * User avatar with unread badge and online indicator
- */
-@Composable
-private fun UserAvatar(
-    photoUrl: String?,
-    unreadCount: Int,
-    isOnline: Boolean
-) {
-    Box {
-        AsyncImage(
-            model = photoUrl,
-            contentDescription = "User avatar",
-            modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentScale = ContentScale.Crop
-        )
 
-        // Unread badge
-        if (unreadCount > 0) {
-            Badge(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-4).dp),
-                containerColor = Color(0xFFFF6B35),
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Text(
-                    text = if (unreadCount > 9) "9+" else "$unreadCount",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        // Online indicator
-        if (isOnline) {
-            Box(
-                modifier = Modifier
-                    .size(14.dp)
-                    .align(Alignment.BottomEnd)
-                    .background(Color(0xFF43A047), CircleShape)
-                    .border(
-                        2.dp,
-                        MaterialTheme.colorScheme.surface,
-                        CircleShape
-                    )
-            )
-        }
-    }
-}
-
-/**
- * Chat information (name, message preview, timestamp)
- */
-@Composable
-private fun ChatInfo(
-    chat: Chat,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier.padding(end = 8.dp)
-    ) {
-        // Name and timestamp row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = chat.otherUserName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = if (chat.unreadCount > 0)
-                    FontWeight.Bold
-                else
-                    FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false)
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Text(
-                text = formatChatTimestamp(chat.lastMessageTimestamp),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (chat.unreadCount > 0)
-                    Color(0xFFFF6B35)
-                else
-                    MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = if (chat.unreadCount > 0)
-                    FontWeight.Bold
-                else
-                    FontWeight.Normal
-            )
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Message preview or typing indicator
-        if (chat.isTyping) {
-            TypingIndicator()
-        } else {
-            MessagePreview(chat = chat)
-        }
-    }
-}
-
-/**
- * Typing indicator animation
- */
 @Composable
 private fun TypingIndicator() {
     Row(
@@ -571,13 +582,9 @@ private fun TypingIndicator() {
     }
 }
 
-/**
- * Message preview with status icon
- */
 @Composable
 private fun MessagePreview(chat: Chat) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        // Message status icon (if sent by me)
         if (chat.lastMessageSentByMe) {
             Icon(
                 imageVector = when {
@@ -612,9 +619,6 @@ private fun MessagePreview(chat: Chat) {
     }
 }
 
-/**
- * Format timestamp for chat list
- */
 fun formatChatTimestamp(timestamp: com.google.firebase.Timestamp?): String {
     if (timestamp == null) return ""
 
@@ -624,22 +628,18 @@ fun formatChatTimestamp(timestamp: com.google.firebase.Timestamp?): String {
     }
 
     return when {
-        // Today - show time
         now.get(Calendar.DAY_OF_YEAR) == messageTime.get(Calendar.DAY_OF_YEAR) &&
                 now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> {
             SimpleDateFormat("h:mm a", Locale.getDefault()).format(timestamp.toDate())
         }
-        // Yesterday
         now.get(Calendar.DAY_OF_YEAR) - messageTime.get(Calendar.DAY_OF_YEAR) == 1 &&
                 now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> {
             "Yesterday"
         }
-        // This week - show day name
         now.get(Calendar.WEEK_OF_YEAR) == messageTime.get(Calendar.WEEK_OF_YEAR) &&
                 now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> {
             SimpleDateFormat("EEE", Locale.getDefault()).format(timestamp.toDate())
         }
-        // Older - show date
         else -> {
             SimpleDateFormat("MMM d", Locale.getDefault()).format(timestamp.toDate())
         }

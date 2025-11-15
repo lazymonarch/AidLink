@@ -1,12 +1,19 @@
+///Users/lakshan/AndroidStudioProjects/AidLink/app/src/main/java/com/aidlink/ui/AppNavigation.kt
 package com.aidlink.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -24,13 +31,6 @@ import com.aidlink.ui.settings.SettingsScreen
 import com.aidlink.viewmodel.*
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
-import com.aidlink.viewmodel.AuthProfileState
 
 @Composable
 fun AppNavigation() {
@@ -52,12 +52,12 @@ fun AppNavigation() {
                     popUpTo(navController.graph.id) { inclusive = true }
                 }
             }
-            AuthProfileState.Unauthenticated -> { // Corrected: Navigate to login when no user is logged in or after logout
+            AuthProfileState.Unauthenticated -> {
                 navController.navigate("login") {
                     popUpTo(navController.graph.id) { inclusive = true }
                 }
             }
-            AuthProfileState.NeedsProfile -> { // Corrected: Navigate to profile_setup when user is authenticated but needs profile
+            AuthProfileState.NeedsProfile -> {
                 navController.navigate("profile_setup") {
                     popUpTo(navController.graph.id) { inclusive = true }
                 }
@@ -168,17 +168,15 @@ fun AppNavigation() {
             }
 
             composable("chats") {
-                val chatsViewModel: ChatsViewModel = hiltViewModel()
                 ChatsListScreen(
                     navController = navController,
-                    viewModel = chatsViewModel
+                    viewModel = hiltViewModel()
                 )
             }
 
             composable("profile") {
-                val profileViewModel: ProfileViewModel = hiltViewModel()
                 ProfileScreen(
-                    profileViewModel = profileViewModel,
+                    profileViewModel = hiltViewModel(),
                     onNavigateToEdit = { navController.navigate("edit_profile") },
                     onNavigateToSettings = { navController.navigate("settings") }
                 )
