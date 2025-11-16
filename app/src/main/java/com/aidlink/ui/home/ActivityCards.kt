@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.home
 
 import androidx.compose.foundation.BorderStroke
@@ -5,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -115,10 +115,13 @@ internal fun ActivityRequestCard(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.weight(1f, fill = false),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Schedule,
                                 contentDescription = null,
@@ -129,41 +132,43 @@ internal fun ActivityRequestCard(
                             Text(
                                 text = formatTimestamp(request.timestamp),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("•", color = MaterialTheme.colorScheme.outline)
+                        Spacer(modifier = Modifier.width(8.dp))
 
-                        Box(modifier = Modifier.width(IntrinsicSize.Min)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = when (request.type) {
-                                        RequestType.FEE -> Icons.Default.AttachMoney
-                                        RequestType.VOLUNTEER -> Icons.Default.Favorite
-                                    },
-                                    contentDescription = null,
-                                    tint = when (request.type) {
-                                        RequestType.FEE -> MaterialTheme.colorScheme.primary
-                                        RequestType.VOLUNTEER -> MaterialTheme.colorScheme.tertiary
-                                    },
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = when (request.type) {
-                                        RequestType.FEE -> "Paid"
-                                        RequestType.VOLUNTEER -> "Free"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = when (request.type) {
-                                        RequestType.FEE -> MaterialTheme.colorScheme.primary
-                                        RequestType.VOLUNTEER -> MaterialTheme.colorScheme.tertiary
-                                    },
-                                    maxLines = 1
-                                )
-                            }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = when (request.type) {
+                                    RequestType.FEE -> Icons.Default.AttachMoney
+                                    RequestType.VOLUNTEER -> Icons.Default.Favorite
+                                },
+                                contentDescription = null,
+                                tint = when (request.type) {
+                                    RequestType.FEE -> MaterialTheme.colorScheme.primary
+                                    RequestType.VOLUNTEER -> MaterialTheme.colorScheme.tertiary
+                                },
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = when (request.type) {
+                                    RequestType.FEE -> "Paid"
+                                    RequestType.VOLUNTEER -> "Free"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = when (request.type) {
+                                    RequestType.FEE -> MaterialTheme.colorScheme.primary
+                                    RequestType.VOLUNTEER -> MaterialTheme.colorScheme.tertiary
+                                },
+                                maxLines = 1
+                            )
                         }
                     }
                 }

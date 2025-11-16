@@ -1,4 +1,4 @@
-///Users/lakshan/AndroidStudioProjects/AidLink/app/src/main/java/com/aidlink/ui/AppNavigation.kt
+
 package com.aidlink.ui
 
 import androidx.compose.foundation.background
@@ -54,11 +54,6 @@ fun AppNavigation() {
             }
             AuthProfileState.Unauthenticated -> {
                 navController.navigate("login") {
-                    popUpTo(navController.graph.id) { inclusive = true }
-                }
-            }
-            AuthProfileState.NeedsProfile -> {
-                navController.navigate("profile_setup") {
                     popUpTo(navController.graph.id) { inclusive = true }
                 }
             }

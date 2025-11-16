@@ -1,3 +1,4 @@
+
 package com.aidlink.viewmodel
 
 import androidx.lifecycle.ViewModel
@@ -25,6 +26,9 @@ class SettingsViewModel @Inject constructor(
     private val _deleteAccountUiState = MutableStateFlow<DeleteAccountUiState>(DeleteAccountUiState.Idle)
     val deleteAccountUiState: StateFlow<DeleteAccountUiState> = _deleteAccountUiState.asStateFlow()
 
+    /**
+     * Initiates account deletion process
+     */
     fun onDeleteAccountClicked() {
         viewModelScope.launch {
             _deleteAccountUiState.value = DeleteAccountUiState.Loading
@@ -37,7 +41,17 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Resets the delete account UI state back to Idle
+     */
     fun resetState() {
         _deleteAccountUiState.value = DeleteAccountUiState.Idle
+    }
+    
+    /**
+     * Logs out the current user
+     */
+    fun logOut() {
+        repository.signOut()
     }
 }

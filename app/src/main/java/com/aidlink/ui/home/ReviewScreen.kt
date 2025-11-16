@@ -7,8 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -81,12 +83,44 @@ fun ReviewScreen(
                 }
             )
         },
+        bottomBar = {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shadowElevation = 8.dp
+            ) {
+                Button(
+                    onClick = {
+                        val review = Review(
+                            requestId = requestId,
+                            reviewerId = currentUser?.uid ?: "",
+                            revieweeId = revieweeId,
+                            overall = overallExperience!!,
+                            badges = selectedBadges.toList()
+                        )
+                        viewModel.submitReview(review)
+                    },
+                    enabled = overallExperience != null && uiState !is ReviewUiState.Submitting,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .height(56.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (uiState is ReviewUiState.Submitting) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    } else {
+                        Text("Submit Feedback", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
     ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 8.dp) // Adjusted padding
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
             // --- Context Header (User Profile & Request) ---
             revieweeProfile?.let { profile ->
@@ -196,31 +230,6 @@ fun ReviewScreen(
                             selectedBadges = newBadges
                         }
                     )
-                }
-            }
-
-            Spacer(Modifier.weight(1f)) // Pushes content to top
-
-            // --- Submit Button ---
-            Button(
-                onClick = {
-                    val review = Review(
-                        requestId = requestId,
-                        reviewerId = currentUser?.uid ?: "",
-                        revieweeId = revieweeId,
-                        overall = overallExperience!!,
-                        badges = selectedBadges.toList()
-                    )
-                    viewModel.submitReview(review)
-                },
-                enabled = overallExperience != null && uiState !is ReviewUiState.Submitting,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                if (uiState is ReviewUiState.Submitting) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                } else {
-                    Text("Submit Feedback", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

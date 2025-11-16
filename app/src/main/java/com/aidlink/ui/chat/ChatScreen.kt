@@ -53,33 +53,33 @@ fun ChatScreen(
     val otherUserTyping by viewModel.otherUserTyping.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
-    
+
     val chat by viewModel.chat.collectAsState()
     val isHelper by viewModel.isHelper.collectAsState()
     val showCompletionDialog by viewModel.showCompletionDialog.collectAsState()
     val request by viewModel.request.collectAsState()
-    
+
     val listState = rememberLazyListState()
-    
+
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
-    
+
     LaunchedEffect(chat?.requestId) {
         chat?.requestId?.let { requestId ->
             viewModel.loadRequestDetails(requestId)
         }
     }
-    
+
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
             snackbarHostState.showSnackbar(message = it, duration = SnackbarDuration.Short)
         }
     }
-    
+
     Scaffold(
         topBar = {
             ChatTopBar(
@@ -90,6 +90,27 @@ fun ChatScreen(
                 onProfileClick = { /* TODO */ },
                 onMoreClick = { /* TODO */ }
             )
+        },
+        bottomBar = {
+            Column {
+                if (isHelper && chat?.requestStatus == "in_progress") {
+                    JobCompletionActionBar(
+                        onCompleteClick = { viewModel.markJobAsComplete() },
+                        onNotCompleteClick = { viewModel.markJobAsNotComplete() }
+                    )
+                }
+
+                if (chat?.requestStatus != "completed") {
+                    MessageInputBar(
+                        messageText = messageText,
+                        onMessageTextChange = { viewModel.updateMessageText(it) },
+                        onSendClick = { viewModel.sendMessage() },
+                        isSending = isSending
+                    )
+                } else {
+                    ChatEndedBanner()
+                }
+            }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
@@ -124,31 +145,13 @@ fun ChatScreen(
                     )
                 }
             }
-            
-            if (isHelper && chat?.requestStatus == "in_progress") {
-                JobCompletionActionBar(
-                    onCompleteClick = { viewModel.markJobAsComplete() },
-                    onNotCompleteClick = { viewModel.markJobAsNotComplete() }
-                )
-            }
-            
-            if (chat?.requestStatus != "completed") {
-                MessageInputBar(
-                    messageText = messageText,
-                    onMessageTextChange = { viewModel.updateMessageText(it) },
-                    onSendClick = { viewModel.sendMessage() },
-                    isSending = isSending
-                )
-            } else {
-                ChatEndedBanner()
-            }
         }
     }
-    
+
     if (showCompletionDialog) {
         CompletionConfirmationDialog(
             helperName = userName,
-            onConfirm = { 
+            onConfirm = {
                 viewModel.confirmCompletion()
                 val requestId = chat?.requestId ?: return@CompletionConfirmationDialog
                 val helperId = chat?.helperId ?: return@CompletionConfirmationDialog
@@ -178,23 +181,31 @@ private fun RequestInfoCard(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Filled.Description,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Description,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = request.title,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "View request details",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
             }
             Icon(
@@ -255,7 +266,7 @@ private fun ChatTopBar(
                                     .size(8.dp)
                                     .background(
                                         color = when (requestStatus) {
-                                            "in_progress" -> Color(0xFF43A047) 
+                                            "in_progress" -> Color(0xFF43A047)
                                             "pending_completion" -> Color(0xFFFB8C00)
                                             "completed" -> Color(0xFFE53935)
                                             else -> Color.Transparent
@@ -268,8 +279,8 @@ private fun ChatTopBar(
                     
                     AnimatedContent(
                         targetState = isTyping,
-                        transitionSpec = { 
-                            fadeIn() + expandVertically() togetherWith fadeOut() + shrinkVertically() 
+                        transitionSpec = {
+                            fadeIn() + expandVertically() togetherWith fadeOut() + shrinkVertically()
                         },
                         label = "typing_status"
                     ) { typing ->
@@ -295,9 +306,9 @@ private fun ChatTopBar(
                                     "completed" -> Color(0xFFE53935)
                                     else -> Color(0xFF43A047)
                                 },
-                                fontWeight = if (requestStatus.isNotEmpty()) 
-                                    FontWeight.SemiBold 
-                                else 
+                                fontWeight = if (requestStatus.isNotEmpty())
+                                    FontWeight.SemiBold
+                                else
                                     FontWeight.Normal
                             )
                         }
@@ -349,18 +360,18 @@ private fun MessageBubble(
                     bottomStart = if (isCurrentUser) 16.dp else 4.dp,
                     bottomEnd = if (isCurrentUser) 4.dp else 16.dp
                 ),
-                color = if (isCurrentUser) 
-                    Color(0xFFFF6B35) 
-                else 
+                color = if (isCurrentUser)
+                    Color(0xFFFF6B35)
+                else
                     MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.widthIn(max = 280.dp)
             ) {
                 Text(
                     text = message.text,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isCurrentUser) 
-                        Color.White 
-                    else 
+                    color = if (isCurrentUser)
+                        Color.White
+                    else
                         MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                 )
@@ -481,7 +492,7 @@ private fun JobCompletionActionBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             Text(
                 text = "Mark job status:",
@@ -498,7 +509,7 @@ private fun JobCompletionActionBar(
                     onClick = onCompleteClick,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .defaultMinSize(minHeight = 48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF43A047),
@@ -514,7 +525,8 @@ private fun JobCompletionActionBar(
                     Text(
                         "Job Complete",
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center
                     )
                 }
                 
@@ -522,7 +534,7 @@ private fun JobCompletionActionBar(
                     onClick = onNotCompleteClick,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .defaultMinSize(minHeight = 48.dp),
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error),
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -538,7 +550,8 @@ private fun JobCompletionActionBar(
                     Text(
                         "Not Complete",
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -572,7 +585,10 @@ private fun CompletionConfirmationDialog(
             )
         },
         text = {
-            Column {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
                     text = "$helperName has marked this job as complete.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -592,47 +608,54 @@ private fun CompletionConfirmationDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF43A047),
-                    contentColor = Color.White
-                ),
-                shape = RoundedCornerShape(12.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "Confirm & Review",
-                    fontWeight = FontWeight.Bold
-                )
+                Button(
+                    onClick = onConfirm,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF43A047),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Confirm & Review",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onReject,
+                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Cancel,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Not Complete",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onReject,
-                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Cancel,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "Not Complete",
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        },
+        dismissButton = {},
         containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(24.dp)
     )

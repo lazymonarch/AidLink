@@ -1,3 +1,4 @@
+
 package com.aidlink.viewmodel
 
 import androidx.lifecycle.ViewModel
@@ -20,7 +21,6 @@ sealed class AuthProfileState {
     object Unknown : AuthProfileState()
     object Authenticated : AuthProfileState()
     object Unauthenticated : AuthProfileState()
-    object NeedsProfile : AuthProfileState()
 }
 
 @HiltViewModel
@@ -43,7 +43,7 @@ class AppNavViewModel @Inject constructor(
                     if (repository.isUserProfileExists()) {
                         emit(AuthProfileState.Authenticated)
                     } else {
-                        emit(AuthProfileState.NeedsProfile)
+                        emit(AuthProfileState.Unauthenticated)
                     }
                 }
             }
@@ -65,6 +65,6 @@ class AppNavViewModel @Inject constructor(
 
     fun consumeDeepLink() {
         _chatDeepLinkInfo.value = null
-        _reviewDeepLinkInfo.value = null
+_reviewDeepLinkInfo.value = null
     }
 }

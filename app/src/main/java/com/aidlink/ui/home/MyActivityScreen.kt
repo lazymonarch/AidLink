@@ -1,3 +1,4 @@
+
 package com.aidlink.ui.home
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -167,21 +168,6 @@ fun MyActivityScreen(
                                 isSelected = pagerState.currentPage == 2
                             )
                         }
-                    )
-                }
-            }
-        },
-        floatingActionButton = {
-            if (pagerState.currentPage == 0) {
-                FloatingActionButton(
-                    onClick = { navController.navigate("post_request") },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Post a Request"
                     )
                 }
             }
